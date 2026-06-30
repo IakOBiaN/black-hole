@@ -43,25 +43,48 @@ def render(camera, mass, shadow_color=(0, 0, 0), miss_color=(0, 0, 0)):
     return img
 
 
-def render_disk(camera, mass, disk, disk_color=(255, 160, 70)):
-    """Render a black hole with a thin accretion disk on a black background.
-    The disk is drawn in a flat color; physical brightness comes later."""
+def render_radius_buffer(camera, mass, disk):
+    """Trace every pixel and store the disk hit radius (NaN where no hit).
+    This is the expensive geometry pass; shading is applied separately."""
     from .disk import trace
 
     pos = camera.position
     dirs = camera.ray_directions()
     h, w, _ = dirs.shape
 
-    disk_rgb = np.array(disk_color, dtype=np.uint8)
-    img = np.zeros((h, w, 3), dtype=np.uint8)
-
+    buffer = np.full((h, w), np.nan)
     for i in range(h):
         for j in range(w):
-            kind, _ = trace(pos, dirs[i, j], mass, disk)
+            kind, r = trace(pos, dirs[i, j], mass, disk)
             if kind == "disk":
-                img[i, j] = disk_rgb
+                buffer[i, j] = r
+    return buffer
 
-    return img
+
+def shade_disk(radius_buffer, disk, t_peak=10000.0, mode="accurate"):
+    """Color a radius buffer: blackbody color from the local temperature,
+    brightness proportional to T^4, on a black background."""
+    from .temperature import disk_temperature
+    from .color import blackbody_color, tonemap
+
+    h, w = radius_buffer.shape
+    linear = np.zeros((h, w, 3))
+    mask = ~np.isnan(radius_buffer)
+
+    if mask.any():
+        r = radius_buffer[mask]
+        temp = disk_temperature(r, disk.inner, t_peak)
+
+        samples = np.linspace(1000.0, t_peak, 256)
+        lut = np.array([blackbody_color(t) for t in samples])
+        clamped = np.clip(temp, samples[0], samples[-1])
+        hue = np.stack([np.interp(clamped, samples, lut[:, c])
+                        for c in range(3)], axis=1)
+
+        brightness = (temp / t_peak) ** 4
+        linear[mask] = hue * brightness[:, None]
+
+    return tonemap(linear, mode)
 
 
 def save_png(image, path):
