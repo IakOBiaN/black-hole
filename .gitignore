@@ -1,0 +1,21 @@
+# Reference material (not redistributed)
+article/
+
+# Rendered output
+out/*
+!out/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
