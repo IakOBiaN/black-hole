@@ -5,8 +5,9 @@ import numpy as np
 
 class Camera:
     def __init__(self, distance, resolution=(320, 320), fov_deg=28.0,
-                 world_up=(0.0, 0.0, 1.0)):
-        self.position = np.array([distance, 0.0, 0.0])
+                 inclination_deg=0.0, world_up=(0.0, 0.0, 1.0)):
+        inc = np.radians(inclination_deg)
+        self.position = distance * np.array([np.cos(inc), 0.0, np.sin(inc)])
         self.width, self.height = resolution
         self.fov = np.radians(fov_deg)
 
