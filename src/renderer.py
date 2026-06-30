@@ -43,5 +43,26 @@ def render(camera, mass, shadow_color=(0, 0, 0), miss_color=(0, 0, 0)):
     return img
 
 
+def render_disk(camera, mass, disk, disk_color=(255, 160, 70)):
+    """Render a black hole with a thin accretion disk on a black background.
+    The disk is drawn in a flat color; physical brightness comes later."""
+    from .disk import trace
+
+    pos = camera.position
+    dirs = camera.ray_directions()
+    h, w, _ = dirs.shape
+
+    disk_rgb = np.array(disk_color, dtype=np.uint8)
+    img = np.zeros((h, w, 3), dtype=np.uint8)
+
+    for i in range(h):
+        for j in range(w):
+            kind, _ = trace(pos, dirs[i, j], mass, disk)
+            if kind == "disk":
+                img[i, j] = disk_rgb
+
+    return img
+
+
 def save_png(image, path):
     Image.fromarray(image, mode="RGB").save(path)
