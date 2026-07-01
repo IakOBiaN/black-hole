@@ -64,14 +64,17 @@ def render_buffers(camera, mass, disk):
     return radius, bz
 
 
-def shade_disk(radius_buffer, bz_buffer, disk, mass, t_peak=6500.0,
-               mode="accurate", doppler_strength=None):
+def shade_disk(radius_buffer, bz_buffer, azimuth_buffer, disk, mass,
+               t_peak=6500.0, mode="accurate", doppler_strength=None,
+               texture_contrast=0.8):
     """Color a radius buffer including relativistic shifts: the observed
     temperature is g * T_emit, which carries Doppler shift, Doppler beaming
-    (via brightness ~ T^4) and gravitational redshift together."""
+    (via brightness ~ T^4) and gravitational redshift together. A procedural
+    gas texture modulates the brightness."""
     from .temperature import disk_temperature
     from .disk import redshift_factor
     from .color import blackbody_color, tonemap
+    from .texture import disk_pattern
 
     if doppler_strength is None:
         doppler_strength = 0.6 if mode == "beautiful" else 1.0
@@ -91,7 +94,10 @@ def shade_disk(radius_buffer, bz_buffer, disk, mass, t_peak=6500.0,
         hue = np.stack([np.interp(clamped, samples, lut[:, c])
                         for c in range(3)], axis=1)
 
-        brightness = (temp / t_peak) ** 4
+        pattern = disk_pattern(r, azimuth_buffer[mask], disk.inner)
+        texture = 1.0 + texture_contrast * (2.0 * pattern - 1.0)
+
+        brightness = (temp / t_peak) ** 4 * texture
         linear[mask] = hue * brightness[:, None]
 
     return tonemap(linear, mode)

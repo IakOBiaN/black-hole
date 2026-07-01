@@ -62,11 +62,10 @@ def linear_to_srgb(c):
 
 
 def tonemap(linear, mode, exposure=None):
-    """Convert a linear-light image to 8-bit sRGB. 'accurate' keeps relative
-    brightness; 'beautiful' compresses the range so the whole disk glows."""
+    """Convert a linear-light HDR image to 8-bit sRGB through a Reinhard tone
+    curve (the scene's dynamic range is far too large to show linearly)."""
     if exposure is None:
-        exposure = 1.5 if mode == "beautiful" else 1.0
+        exposure = 1.4 if mode == "beautiful" else 1.0
     c = linear * exposure
-    if mode == "beautiful":
-        c = c / (1.0 + c)
+    c = c / (1.0 + c)
     return (linear_to_srgb(c) * 255.0 + 0.5).astype(np.uint8)
