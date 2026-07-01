@@ -20,7 +20,7 @@ def main():
     disk = Disk(inner=6.0 * MASS, outer=14.0 * MASS)
 
     radii, bz, azimuth = trace_batch(camera, MASS, disk)
-    image = shade_disk(radii, bz, azimuth, disk, MASS, t_peak=6500.0, mode=MODE)
+    image = shade_disk(radii, bz, azimuth, disk, MASS, t_peak=4000.0, mode=MODE)
     save_png(image, "out/disk.png")
 
 
