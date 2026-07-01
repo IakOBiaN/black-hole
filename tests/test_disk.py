@@ -15,7 +15,7 @@ def test_crossing_matches_flat_space_when_mass_negligible():
     direction = target - pos
     direction /= np.linalg.norm(direction)
 
-    kind, r = trace(pos, direction, mass, DISK)
+    kind, r, _ = trace(pos, direction, mass, DISK)
     assert kind == "disk"
     assert np.isclose(r, np.linalg.norm(target), rtol=1.0e-4)
 
