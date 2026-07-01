@@ -6,7 +6,8 @@ temperature profile.
 """
 
 from src.camera import Camera
-from src.renderer import render_buffers, shade_disk, save_png
+from src.tracer import trace_batch
+from src.renderer import shade_disk, save_png
 from src.disk import Disk
 
 MASS = 1.0
@@ -14,11 +15,11 @@ MODE = "accurate"
 
 
 def main():
-    camera = Camera(distance=30.0, resolution=(320, 320),
+    camera = Camera(distance=35.0, resolution=(1920, 1080),
                     fov_deg=52.0, inclination_deg=10.0)
     disk = Disk(inner=6.0 * MASS, outer=14.0 * MASS)
 
-    radii, bz = render_buffers(camera, MASS, disk)
+    radii, bz, azimuth = trace_batch(camera, MASS, disk)
     image = shade_disk(radii, bz, disk, MASS, t_peak=6500.0, mode=MODE)
     save_png(image, "out/disk.png")
 
