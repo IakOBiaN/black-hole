@@ -6,7 +6,7 @@ temperature profile.
 """
 
 from src.camera import Camera
-from src.renderer import render_radius_buffer, shade_disk, save_png
+from src.renderer import render_buffers, shade_disk, save_png
 from src.disk import Disk
 
 MASS = 1.0
@@ -18,8 +18,8 @@ def main():
                     fov_deg=52.0, inclination_deg=10.0)
     disk = Disk(inner=6.0 * MASS, outer=14.0 * MASS)
 
-    radii = render_radius_buffer(camera, MASS, disk)
-    image = shade_disk(radii, disk, t_peak=6500.0, mode=MODE)
+    radii, bz = render_buffers(camera, MASS, disk)
+    image = shade_disk(radii, bz, disk, MASS, t_peak=6500.0, mode=MODE)
     save_png(image, "out/disk.png")
 
 

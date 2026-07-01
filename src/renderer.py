@@ -43,8 +43,9 @@ def render(camera, mass, shadow_color=(0, 0, 0), miss_color=(0, 0, 0)):
     return img
 
 
-def render_radius_buffer(camera, mass, disk):
-    """Trace every pixel and store the disk hit radius (NaN where no hit).
+def render_buffers(camera, mass, disk):
+    """Trace every pixel. Returns (radius, bz) buffers: radius is the disk hit
+    radius (NaN where no hit), bz the photon z angular momentum per energy.
     This is the expensive geometry pass; shading is applied separately."""
     from .disk import trace
 
@@ -52,20 +53,28 @@ def render_radius_buffer(camera, mass, disk):
     dirs = camera.ray_directions()
     h, w, _ = dirs.shape
 
-    buffer = np.full((h, w), np.nan)
+    radius = np.full((h, w), np.nan)
+    bz = np.zeros((h, w))
     for i in range(h):
         for j in range(w):
-            kind, r = trace(pos, dirs[i, j], mass, disk)
+            kind, r, b = trace(pos, dirs[i, j], mass, disk)
+            bz[i, j] = b
             if kind == "disk":
-                buffer[i, j] = r
-    return buffer
+                radius[i, j] = r
+    return radius, bz
 
 
-def shade_disk(radius_buffer, disk, t_peak=10000.0, mode="accurate"):
-    """Color a radius buffer: blackbody color from the local temperature,
-    brightness proportional to T^4, on a black background."""
+def shade_disk(radius_buffer, bz_buffer, disk, mass, t_peak=6500.0,
+               mode="accurate", doppler_strength=None):
+    """Color a radius buffer including relativistic shifts: the observed
+    temperature is g * T_emit, which carries Doppler shift, Doppler beaming
+    (via brightness ~ T^4) and gravitational redshift together."""
     from .temperature import disk_temperature
+    from .disk import redshift_factor
     from .color import blackbody_color, tonemap
+
+    if doppler_strength is None:
+        doppler_strength = 0.6 if mode == "beautiful" else 1.0
 
     h, w = radius_buffer.shape
     linear = np.zeros((h, w, 3))
@@ -73,9 +82,10 @@ def shade_disk(radius_buffer, disk, t_peak=10000.0, mode="accurate"):
 
     if mask.any():
         r = radius_buffer[mask]
-        temp = disk_temperature(r, disk.inner, t_peak)
+        g = redshift_factor(r, bz_buffer[mask], mass, doppler_strength)
+        temp = g * disk_temperature(r, disk.inner, t_peak)
 
-        samples = np.linspace(1000.0, t_peak, 256)
+        samples = np.linspace(1000.0, 4.0 * t_peak, 512)
         lut = np.array([blackbody_color(t) for t in samples])
         clamped = np.clip(temp, samples[0], samples[-1])
         hue = np.stack([np.interp(clamped, samples, lut[:, c])

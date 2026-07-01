@@ -39,14 +39,31 @@ def _orbital_basis(pos, direction):
     return r0, e1, tangential / norm
 
 
+def orbital_angular_velocity(r, mass):
+    """Keplerian (circular geodesic) angular velocity, prograde about +z."""
+    return np.sqrt(mass / r ** 3)
+
+
+def redshift_factor(r, bz, mass, doppler_strength=1.0):
+    """Frequency shift g = nu_obs/nu_emit for a photon (z angular momentum
+    per energy bz) emitted by disk material on a circular orbit at radius r.
+    doppler_strength scales the orbital Doppler term (1 = physical)."""
+    grav = np.sqrt(1.0 - 3.0 * mass / r)
+    denom = 1.0 - doppler_strength * bz * orbital_angular_velocity(r, mass)
+    denom = np.clip(denom, 1.0e-3, None)
+    return grav / denom
+
+
 def trace(pos, direction, mass, disk, r_escape_factor=1.1,
           phi_span=50.0, rtol=1.0e-7, atol=1.0e-9):
-    """Trace a ray and return (kind, radius): kind is 'disk', 'horizon' or
-    'background'; radius is the disk hit radius (or None)."""
+    """Trace a ray and return (kind, radius, bz): kind is 'disk', 'horizon'
+    or 'background'; radius is the disk hit radius (or None); bz is the
+    photon z angular momentum per energy (for the Doppler shift)."""
     r0, e1, e2 = _orbital_basis(pos, direction)
     cos_psi = float(np.dot(direction, e1))
+    bz = float(np.cross(pos, direction)[2]) / np.sqrt(lapse_squared(r0, mass))
     if e2 is None:
-        return ("horizon" if cos_psi < 0.0 else "background", None)
+        return ("horizon" if cos_psi < 0.0 else "background", None, bz)
 
     rs = schwarzschild_radius(mass)
     sin_psi = float(np.linalg.norm(direction - cos_psi * e1))
@@ -77,8 +94,8 @@ def trace(pos, direction, mass, disk, r_escape_factor=1.1,
     for phi in sol.t_events[2]:
         r = 1.0 / sol.sol(phi)[0]
         if disk.contains(r):
-            return ("disk", r)
+            return ("disk", r, bz)
 
     if sol.t_events[0].size > 0:
-        return ("horizon", None)
-    return ("background", None)
+        return ("horizon", None, bz)
+    return ("background", None, bz)
