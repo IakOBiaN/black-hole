@@ -61,11 +61,25 @@ def linear_to_srgb(c):
     return np.where(c <= 0.0031308, 12.92 * c, 1.055 * c ** (1.0 / 2.4) - 0.055)
 
 
-def tonemap(linear, mode, exposure=None):
-    """Convert a linear-light HDR image to 8-bit sRGB through a Reinhard tone
-    curve (the scene's dynamic range is far too large to show linearly)."""
+def _luminance(c):
+    return 0.2126 * c[..., 0] + 0.7152 * c[..., 1] + 0.0722 * c[..., 2]
+
+
+def tonemap(linear, mode, exposure=None, saturation=None):
+    """Convert a linear-light HDR image to 8-bit sRGB. The Reinhard curve is
+    applied to luminance and the color ratios are preserved, so bright regions
+    keep their hue instead of washing out to white."""
     if exposure is None:
         exposure = 1.4 if mode == "beautiful" else 1.0
+    if saturation is None:
+        saturation = 1.35 if mode == "beautiful" else 1.15
+
     c = linear * exposure
-    c = c / (1.0 + c)
-    return (linear_to_srgb(c) * 255.0 + 0.5).astype(np.uint8)
+    lum = _luminance(c)
+    lum_safe = np.where(lum > 0.0, lum, 1.0)
+    toned = lum / (1.0 + lum)
+
+    graded = c * (toned / lum_safe)[..., None]
+    gray = toned[..., None]
+    graded = gray + saturation * (graded - gray)
+    return (linear_to_srgb(graded) * 255.0 + 0.5).astype(np.uint8)
