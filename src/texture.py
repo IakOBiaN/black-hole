@@ -37,8 +37,8 @@ def _value_noise(x, y, period):
     return a + uy * (b - a)
 
 
-def disk_pattern(r, azimuth, r_inner, base_angular=6, octaves=5,
-                 radial_freq=7.0, twist=2.5, lacunarity=2.0, gain=0.55):
+def disk_pattern(r, azimuth, r_inner, base_angular=10, octaves=6,
+                 radial_freq=4.0, twist=6.0, lacunarity=2.0, gain=0.6):
     lr = np.log(r / r_inner)
     value = np.zeros_like(r, dtype=float)
     amp, total, freq, period = 1.0, 0.0, 1.0, base_angular

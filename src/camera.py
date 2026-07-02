@@ -10,6 +10,7 @@ class Camera:
         self.position = distance * np.array([np.cos(inc), 0.0, np.sin(inc)])
         self.width, self.height = resolution
         self.fov = np.radians(fov_deg)
+        self._params = (distance, fov_deg, inclination_deg, world_up)
 
         forward = -self.position / np.linalg.norm(self.position)
         world_up = np.asarray(world_up, dtype=float)
@@ -18,6 +19,13 @@ class Camera:
         up = np.cross(right, forward)
 
         self.forward, self.right, self.up = forward, right, up
+
+    def supersampled(self, factor):
+        """A copy of this camera with resolution scaled up by an integer
+        factor, for supersampled anti-aliasing."""
+        distance, fov_deg, inclination_deg, world_up = self._params
+        return Camera(distance, (self.width * factor, self.height * factor),
+                      fov_deg, inclination_deg, world_up)
 
     def ray_directions(self):
         """Unit ray direction for every pixel, shape (height, width, 3)."""

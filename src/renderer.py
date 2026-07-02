@@ -64,24 +64,22 @@ def render_buffers(camera, mass, disk):
     return radius, bz
 
 
-def shade_disk(radius_buffer, bz_buffer, azimuth_buffer, disk, mass,
-               t_peak=4000.0, mode="accurate", doppler_strength=None,
-               texture_contrast=0.8, bloom_strength=None):
-    """Color a radius buffer including relativistic shifts: the observed
+def shade_disk_linear(radius_buffer, bz_buffer, azimuth_buffer, disk, mass,
+                      t_peak=4000.0, mode="accurate", doppler_strength=None,
+                      texture_contrast=1.0, texture_kwargs=None):
+    """Linear HDR emission of the disk (no bloom, no tone map). The observed
     temperature is g * T_emit, which carries Doppler shift, Doppler beaming
     (via brightness ~ T^4) and gravitational redshift together. A procedural
-    gas texture modulates the brightness, and a bloom halo is added in linear
-    light before tone mapping."""
+    gas texture modulates the brightness."""
     from .temperature import disk_temperature
     from .disk import redshift_factor
-    from .color import blackbody_color, tonemap
+    from .color import blackbody_color
     from .texture import disk_pattern
-    from .postprocess import add_bloom
 
     if doppler_strength is None:
         doppler_strength = 0.6 if mode == "beautiful" else 1.0
-    if bloom_strength is None:
-        bloom_strength = 0.9 if mode == "beautiful" else 0.4
+    if texture_kwargs is None:
+        texture_kwargs = {}
 
     h, w = radius_buffer.shape
     linear = np.zeros((h, w, 3))
@@ -98,14 +96,40 @@ def shade_disk(radius_buffer, bz_buffer, azimuth_buffer, disk, mass,
         hue = np.stack([np.interp(clamped, samples, lut[:, c])
                         for c in range(3)], axis=1)
 
-        pattern = disk_pattern(r, azimuth_buffer[mask], disk.inner)
+        pattern = disk_pattern(r, azimuth_buffer[mask], disk.inner, **texture_kwargs)
         texture = 1.0 + texture_contrast * (2.0 * pattern - 1.0)
 
         brightness = (temp / t_peak) ** 4 * texture
         linear[mask] = hue * brightness[:, None]
 
-    linear = add_bloom(linear, bloom_strength)
-    return tonemap(linear, mode)
+    return linear
+
+
+def _downsample(image, factor):
+    """Average factor x factor blocks (supersampled anti-aliasing)."""
+    h, w, c = image.shape
+    return image.reshape(h // factor, factor, w // factor, factor, c).mean((1, 3))
+
+
+def render_disk_image(camera, mass, disk, mode="beautiful", t_peak=4000.0,
+                      supersample=2, bloom_strength=None, texture_contrast=1.0,
+                      doppler_strength=None, texture_kwargs=None):
+    """Full thin-disk render: supersample, shade in linear light, downsample,
+    add bloom, tone map to an 8-bit sRGB frame."""
+    from .tracer import trace_batch
+    from .postprocess import add_bloom
+    from .color import tonemap
+
+    hi = camera.supersampled(supersample) if supersample > 1 else camera
+    radii, bz, azimuth = trace_batch(hi, mass, disk)
+    linear = shade_disk_linear(radii, bz, azimuth, disk, mass, t_peak, mode,
+                               doppler_strength, texture_contrast, texture_kwargs)
+    if supersample > 1:
+        linear = _downsample(linear, supersample)
+
+    if bloom_strength is None:
+        bloom_strength = 0.9 if mode == "beautiful" else 0.4
+    return tonemap(add_bloom(linear, bloom_strength), mode)
 
 
 def save_png(image, path):

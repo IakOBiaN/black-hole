@@ -1,26 +1,26 @@
 """Render the current scene to out/.
 
-Phase 2: a Schwarzschild black hole with a thin accretion disk on a black
-background. The disk now glows with a blackbody color set by its radial
-temperature profile.
+A Schwarzschild black hole with a thin accretion disk on a black background:
+blackbody color from the temperature profile, relativistic Doppler and
+gravitational shifts, a procedural gas texture, and bloom.
 """
 
 from src.camera import Camera
-from src.tracer import trace_batch
-from src.renderer import shade_disk, save_png
+from src.renderer import render_disk_image, save_png
 from src.disk import Disk
 
 MASS = 1.0
-MODE = "accurate"
+MODE = "beautiful"
+SUPERSAMPLE = 2
 
 
 def main():
-    camera = Camera(distance=35.0, resolution=(1920, 1080),
+    camera = Camera(distance=33.0, resolution=(720, 480),
                     fov_deg=52.0, inclination_deg=10.0)
     disk = Disk(inner=6.0 * MASS, outer=14.0 * MASS)
 
-    radii, bz, azimuth = trace_batch(camera, MASS, disk)
-    image = shade_disk(radii, bz, azimuth, disk, MASS, t_peak=4000.0, mode=MODE)
+    image = render_disk_image(camera, MASS, disk, mode=MODE,
+                              t_peak=4000.0, supersample=SUPERSAMPLE)
     save_png(image, "out/disk.png")
 
 
