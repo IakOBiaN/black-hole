@@ -64,44 +64,46 @@ def render_buffers(camera, mass, disk):
     return radius, bz
 
 
+def _disk_emission(r, g, azimuth, disk_inner, t_peak, texture_contrast,
+                   texture_kwargs):
+    """Linear HDR emission for masked disk samples given their radius, redshift
+    factor g and azimuth. Observed temperature is g * T_emit, so brightness
+    ~ T_obs^4 carries the Doppler beaming and gravitational dimming."""
+    from .temperature import disk_temperature
+    from .color import blackbody_color
+    from .texture import disk_pattern
+
+    temp = g * disk_temperature(r, disk_inner, t_peak)
+    samples = np.linspace(1000.0, 4.0 * t_peak, 512)
+    lut = np.array([blackbody_color(t) for t in samples])
+    clamped = np.clip(temp, samples[0], samples[-1])
+    hue = np.stack([np.interp(clamped, samples, lut[:, c])
+                    for c in range(3)], axis=1)
+
+    pattern = disk_pattern(r, azimuth, disk_inner, **texture_kwargs)
+    texture = 1.0 + texture_contrast * (2.0 * pattern - 1.0)
+    brightness = (temp / t_peak) ** 4 * texture
+    return hue * brightness[:, None]
+
+
 def shade_disk_linear(radius_buffer, bz_buffer, azimuth_buffer, disk, mass,
                       t_peak=5000.0, mode="accurate", doppler_strength=None,
                       texture_contrast=1.0, texture_kwargs=None):
-    """Linear HDR emission of the disk (no bloom, no tone map). The observed
-    temperature is g * T_emit, which carries Doppler shift, Doppler beaming
-    (via brightness ~ T^4) and gravitational redshift together. A procedural
-    gas texture modulates the brightness."""
-    from .temperature import disk_temperature
+    """Linear HDR emission of the Schwarzschild disk (no bloom, no tone map)."""
     from .disk import redshift_factor
-    from .color import blackbody_color
-    from .texture import disk_pattern
 
     if doppler_strength is None:
         doppler_strength = 0.6 if mode == "beautiful" else 1.0
     if texture_kwargs is None:
         texture_kwargs = {}
 
-    h, w = radius_buffer.shape
-    linear = np.zeros((h, w, 3))
+    linear = np.zeros(radius_buffer.shape + (3,))
     mask = ~np.isnan(radius_buffer)
-
     if mask.any():
         r = radius_buffer[mask]
         g = redshift_factor(r, bz_buffer[mask], mass, doppler_strength)
-        temp = g * disk_temperature(r, disk.inner, t_peak)
-
-        samples = np.linspace(1000.0, 4.0 * t_peak, 512)
-        lut = np.array([blackbody_color(t) for t in samples])
-        clamped = np.clip(temp, samples[0], samples[-1])
-        hue = np.stack([np.interp(clamped, samples, lut[:, c])
-                        for c in range(3)], axis=1)
-
-        pattern = disk_pattern(r, azimuth_buffer[mask], disk.inner, **texture_kwargs)
-        texture = 1.0 + texture_contrast * (2.0 * pattern - 1.0)
-
-        brightness = (temp / t_peak) ** 4 * texture
-        linear[mask] = hue * brightness[:, None]
-
+        linear[mask] = _disk_emission(r, g, azimuth_buffer[mask], disk.inner,
+                                      t_peak, texture_contrast, texture_kwargs)
     return linear
 
 
@@ -124,6 +126,38 @@ def render_disk_image(camera, mass, disk, mode="beautiful", t_peak=5000.0,
     radii, bz, azimuth = trace_batch(hi, mass, disk)
     linear = shade_disk_linear(radii, bz, azimuth, disk, mass, t_peak, mode,
                                doppler_strength, texture_contrast, texture_kwargs)
+    if supersample > 1:
+        linear = _downsample(linear, supersample)
+
+    if bloom_strength is None:
+        bloom_strength = 0.9 if mode == "beautiful" else 0.4
+    return tonemap(add_bloom(linear, bloom_strength), mode)
+
+
+def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=5000.0,
+                      supersample=1, bloom_strength=None, texture_contrast=1.0,
+                      doppler_strength=None, texture_kwargs=None):
+    """Full Kerr render: trace the rotating black hole, shade the equatorial
+    disk with the Kerr circular-orbit redshift, add bloom, tone map."""
+    from .kerr_tracer import trace_batch_kerr
+    from .kerr import kerr_redshift_factor
+    from .postprocess import add_bloom
+    from .color import tonemap
+
+    if doppler_strength is None:
+        doppler_strength = 0.6 if mode == "beautiful" else 1.0
+    if texture_kwargs is None:
+        texture_kwargs = {}
+
+    hi = camera.supersampled(supersample) if supersample > 1 else camera
+    radius, b, azimuth, _ = trace_batch_kerr(hi, spin, disk)
+
+    linear = np.zeros(radius.shape + (3,))
+    mask = ~np.isnan(radius)
+    if mask.any():
+        g = kerr_redshift_factor(radius[mask], b[mask], spin, doppler_strength)
+        linear[mask] = _disk_emission(radius[mask], g, azimuth[mask], disk.inner,
+                                      t_peak, texture_contrast, texture_kwargs)
     if supersample > 1:
         linear = _downsample(linear, supersample)
 

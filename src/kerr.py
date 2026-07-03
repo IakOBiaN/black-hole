@@ -72,6 +72,20 @@ def photon_orbit_radii(a):
     return r1, r2
 
 
+def kerr_redshift_factor(r, b, a, doppler_strength=1.0):
+    """Frequency shift g = nu_obs/nu_emit for a photon (axial angular momentum
+    b, energy 1) emitted by disk material on a prograde circular geodesic at
+    equatorial radius r. Reduces to sqrt(1-3/r)/(1-Omega b) when a = 0."""
+    omega_orb = 1.0 / (r ** 1.5 + a)
+    g_tt = -(1.0 - 2.0 / r)
+    g_tphi = -2.0 * a / r
+    g_phiphi = r * r + a * a + 2.0 * a * a / r
+    dt2 = -(g_tt + 2.0 * omega_orb * g_tphi + omega_orb * omega_orb * g_phiphi)
+    u_t = 1.0 / np.sqrt(dt2)
+    denom = np.clip(1.0 - doppler_strength * omega_orb * b, 1.0e-3, None)
+    return 1.0 / (u_t * denom)
+
+
 def _potential(r, theta, b, q, a):
     """U = (R + Delta*Theta) / (2 Delta rho^2); the q term cancels in R+DT."""
     ct2 = np.cos(theta) ** 2
