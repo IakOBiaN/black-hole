@@ -25,6 +25,34 @@ def rho2(r, theta, a):
     return r * r + a * a * np.cos(theta) ** 2
 
 
+def sigma(r, theta, a):
+    return np.sqrt((r * r + a * a) ** 2 - a * a * delta(r, a) * np.sin(theta) ** 2)
+
+
+def alpha(r, theta, a):
+    """FIDO lapse function."""
+    return np.sqrt(rho2(r, theta, a) * delta(r, a)) / sigma(r, theta, a)
+
+
+def omega(r, theta, a):
+    """Frame-dragging angular velocity of the FIDO."""
+    return 2.0 * a * r / sigma(r, theta, a) ** 2
+
+
+def varpi(r, theta, a):
+    """Cylindrical radius factor (proper circumference / 2 pi)."""
+    return sigma(r, theta, a) * np.sin(theta) / np.sqrt(rho2(r, theta, a))
+
+
+def isco(a, prograde=True):
+    """Innermost stable circular orbit radius (Bardeen et al.)."""
+    z1 = 1.0 + (1.0 - a * a) ** (1.0 / 3.0) * (
+        (1.0 + a) ** (1.0 / 3.0) + (1.0 - a) ** (1.0 / 3.0))
+    z2 = np.sqrt(3.0 * a * a + z1 * z1)
+    sign = -1.0 if prograde else 1.0
+    return 3.0 + z2 + sign * np.sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2))
+
+
 def photon_orbit_b(r_o, a):
     """Axial angular momentum of an unstable spherical photon orbit at r_o."""
     return -(r_o ** 3 - 3.0 * r_o ** 2 + a * a * r_o + a * a) / (a * (r_o - 1.0))
