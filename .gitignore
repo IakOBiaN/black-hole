@@ -1,5 +1,7 @@
 # Reference material (not redistributed)
 article/
+example_*.png
+example_*.jpg
 
 # Rendered output
 out/*

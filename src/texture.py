@@ -1,10 +1,11 @@
 """Procedural gas texture for the disk.
 
-Fractal value noise sampled in (log r, phi) with an angular period, so it is
-seamless across the phi wrap. The angular coordinate is sheared by log(r)
-(twist), which winds the streaks into spirals like differentially rotating
-gas. Radial frequency is higher than angular, so features stretch along the
-flow.
+The texture is built in (radius, azimuth) space so it follows the orbital
+flow: features are stretched along the azimuth (the direction of motion) and
+sheared by a radius-dependent twist into trailing spirals, like differentially
+rotating gas. Domain-warped fractal noise adds turbulent, fibrous detail on
+top. The angular coordinate uses periodic value noise, so the texture is
+seamless across the phi wrap.
 """
 
 import numpy as np
@@ -25,29 +26,36 @@ def _value_noise(x, y, period):
     fx, fy = x - x0, y - y0
     ux = fx * fx * (3.0 - 2.0 * fx)
     uy = fy * fy * (3.0 - 2.0 * fy)
-
     y0p, y1p = y0 % period, (y0 + 1) % period
     v00 = _hash01(x0, y0p)
     v10 = _hash01(x0 + 1, y0p)
     v01 = _hash01(x0, y1p)
     v11 = _hash01(x0 + 1, y1p)
-
     a = v00 + ux * (v10 - v00)
     b = v01 + ux * (v11 - v01)
     return a + uy * (b - a)
 
 
-def disk_pattern(r, azimuth, r_inner, base_angular=10, octaves=6,
-                 radial_freq=4.0, twist=6.0, lacunarity=2.0, gain=0.6):
-    lr = np.log(r / r_inner)
-    value = np.zeros_like(r, dtype=float)
-    amp, total, freq, period = 1.0, 0.0, 1.0, base_angular
+def _fbm(x, y, period, octaves=6, gain=0.5):
+    value, amp, freq, per, total = 0.0, 0.5, 1.0, period, 0.0
     for _ in range(octaves):
-        x = radial_freq * freq * lr
-        y = period * (azimuth + twist * lr) / _TWO_PI
-        value += amp * _value_noise(x, y, period)
+        value = value + amp * _value_noise(x * freq, y * freq, per)
         total += amp
         amp *= gain
-        freq *= lacunarity
-        period = int(round(period * lacunarity))
+        freq *= 2.0
+        per *= 2
     return value / total
+
+
+def disk_pattern(r, azimuth, r_inner, radial_freq=11.0, angular_cells=5,
+                 twist=1.8, warp_radial=3.0, warp_angular=1.1, octaves=7):
+    """Cloud density in [0, 1] over the disk, flowing along the orbit."""
+    lr = np.log(r / r_inner)
+    u = radial_freq * lr
+    v = angular_cells * (azimuth + twist * lr) / _TWO_PI
+
+    wu = _fbm(u, v, angular_cells, octaves)
+    wv = _fbm(u + 3.1, v + 1.7, angular_cells, octaves)
+    u2 = u + warp_radial * (wu - 0.5)
+    v2 = v + warp_angular * (wv - 0.5)
+    return _fbm(u2, v2, angular_cells, octaves)

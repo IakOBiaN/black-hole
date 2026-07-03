@@ -20,7 +20,7 @@ def main():
     disk = Disk(inner=6.0 * MASS, outer=14.0 * MASS)
 
     image = render_disk_image(camera, MASS, disk, mode=MODE,
-                              t_peak=4000.0, supersample=SUPERSAMPLE)
+                              t_peak=5000.0, supersample=SUPERSAMPLE)
     save_png(image, "out/disk.png")
 
 

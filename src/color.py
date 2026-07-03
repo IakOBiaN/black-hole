@@ -65,14 +65,18 @@ def _luminance(c):
     return 0.2126 * c[..., 0] + 0.7152 * c[..., 1] + 0.0722 * c[..., 2]
 
 
-def tonemap(linear, mode, exposure=None, saturation=None):
+def tonemap(linear, mode, exposure=None, saturation=None, highlight_desat=None,
+            desat_start=0.55):
     """Convert a linear-light HDR image to 8-bit sRGB. The Reinhard curve is
-    applied to luminance and the color ratios are preserved, so bright regions
-    keep their hue instead of washing out to white."""
+    applied to luminance and the color ratios are preserved (so mid-tones keep
+    their hue), while the brightest regions are pushed toward white for a
+    film-like white-hot highlight response."""
     if exposure is None:
         exposure = 1.4 if mode == "beautiful" else 1.0
     if saturation is None:
         saturation = 1.35 if mode == "beautiful" else 1.15
+    if highlight_desat is None:
+        highlight_desat = 0.9 if mode == "beautiful" else 0.5
 
     c = linear * exposure
     lum = _luminance(c)
@@ -82,4 +86,7 @@ def tonemap(linear, mode, exposure=None, saturation=None):
     graded = c * (toned / lum_safe)[..., None]
     gray = toned[..., None]
     graded = gray + saturation * (graded - gray)
+
+    weight = np.clip((toned - desat_start) / (1.0 - desat_start), 0.0, 1.0) ** 2
+    graded = graded + (highlight_desat * weight)[..., None] * (gray - graded)
     return (linear_to_srgb(graded) * 255.0 + 0.5).astype(np.uint8)

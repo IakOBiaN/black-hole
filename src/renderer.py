@@ -65,7 +65,7 @@ def render_buffers(camera, mass, disk):
 
 
 def shade_disk_linear(radius_buffer, bz_buffer, azimuth_buffer, disk, mass,
-                      t_peak=4000.0, mode="accurate", doppler_strength=None,
+                      t_peak=5000.0, mode="accurate", doppler_strength=None,
                       texture_contrast=1.0, texture_kwargs=None):
     """Linear HDR emission of the disk (no bloom, no tone map). The observed
     temperature is g * T_emit, which carries Doppler shift, Doppler beaming
@@ -111,7 +111,7 @@ def _downsample(image, factor):
     return image.reshape(h // factor, factor, w // factor, factor, c).mean((1, 3))
 
 
-def render_disk_image(camera, mass, disk, mode="beautiful", t_peak=4000.0,
+def render_disk_image(camera, mass, disk, mode="beautiful", t_peak=5000.0,
                       supersample=2, bloom_strength=None, texture_contrast=1.0,
                       doppler_strength=None, texture_kwargs=None):
     """Full thin-disk render: supersample, shade in linear light, downsample,
