@@ -11,7 +11,17 @@ as hitting the equatorial disk, the horizon, or escaping to infinity.
 import numpy as np
 
 from .kerr import (delta, rho2, sigma, alpha, omega, varpi, horizon_radius,
-                   _rk4)
+                   rhs)
+
+
+def _rk4_step(y, b, q, a, dz):
+    """RK4 step with a per-ray affine step dz (shape matches the ray axis)."""
+    dzb = dz[None, :]
+    k1 = rhs(y, b, q, a)
+    k2 = rhs(y + 0.5 * dzb * k1, b, q, a)
+    k3 = rhs(y + 0.5 * dzb * k2, b, q, a)
+    k4 = rhs(y + dzb * k3, b, q, a)
+    return y + dzb / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 
 def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000,
@@ -52,38 +62,66 @@ def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000,
 
     y = np.stack([np.full(n, r_c), np.full(n, theta_c), np.zeros(n),
                   p_r, p_theta])
-    active = np.ones(n, dtype=bool)
     radius = np.full(n, np.nan)
     azimuth = np.full(n, np.nan)
     captured = np.zeros(n, dtype=bool)
     r_h = horizon_radius(a) * 1.002
     half_pi = np.pi / 2.0
 
+    # Active rays are kept compacted so finished rays stop costing anything.
+    idx = np.arange(n)
+    bw, qw = b.copy(), q.copy()
     r_prev, theta_prev, phi_prev = y[0].copy(), y[1].copy(), y[2].copy()
     for _ in range(max_steps):
-        if not active.any():
+        if idx.size == 0:
             break
-        y = np.where(active[None, :], _rk4(y, b, q, a, dzeta), y)
-        r, theta, phi = y[0], y[1], y[2]
+        # Shrink the step near the coordinate singularities so the ray never
+        # overshoots them: near the horizon (Delta -> 0, the 1/Delta terms in
+        # the potential blow up) and near the spin axis (sin(theta) -> 0).
+        pole_dist = np.minimum(theta_prev, np.pi - theta_prev)
+        delta_prev = delta(r_prev, a)
+        dz = (dzeta * np.clip(r_prev / 5.0, 0.5, 4.0)
+              * np.clip((pole_dist / 0.4) ** 2, 0.01, 1.0)
+              * np.clip(delta_prev / 0.3, 0.05, 1.0))
+        y = _rk4_step(y, bw, qw, a, dz)
 
-        crossed = active & ((theta_prev - half_pi) * (theta - half_pi) < 0.0)
+        # Reflect rays that step over a pole: theta stays in [0, pi], p_theta
+        # flips, and phi jumps by pi (Boyer-Lindquist is singular at the axis).
+        below = y[1] < 0.0
+        y[1, below], y[4, below], y[2, below] = (-y[1, below], -y[4, below],
+                                                 y[2, below] + np.pi)
+        above = y[1] > np.pi
+        y[1, above], y[4, above], y[2, above] = (2.0 * np.pi - y[1, above],
+                                                 -y[4, above], y[2, above] + np.pi)
+
+        r, theta, phi = y[0], y[1], y[2]
+        done = np.zeros(idx.size, dtype=bool)
+
+        # A ray inside the near-horizon danger zone is captured; a crossing
+        # recorded during that plunge is spurious (the 1/Delta blow-up) and is
+        # suppressed. delta < 1e-2 stays well below Delta(ISCO), so the real
+        # inner disk edge is untouched.
+        plunged = (r <= r_h) | (delta(r, a) <= 1.0e-2) | (r < 0.0)
+        captured[idx[plunged]] = True
+        done |= plunged
+
+        crossed = (~plunged) & ((theta_prev - half_pi) * (theta - half_pi) < 0.0)
         if crossed.any():
             step = theta - theta_prev
             frac = np.where(step != 0.0, (half_pi - theta_prev) / step, 0.0)
             r_cross = r_prev + frac * (r - r_prev)
             hit = crossed & (r_cross >= disk.inner) & (r_cross <= disk.outer)
-            radius[hit] = r_cross[hit]
-            azimuth[hit] = (phi_prev + frac * (phi - phi_prev))[hit]
-            active[hit] = False
+            radius[idx[hit]] = r_cross[hit]
+            azimuth[idx[hit]] = (phi_prev + frac * (phi - phi_prev))[hit]
+            done |= hit
 
-        fell_in = active & (r <= r_h)
-        captured[fell_in] = True
-        active &= ~fell_in
-        active &= ~(r >= r_escape)
+        done |= (r >= r_escape)
 
-        r_prev = np.where(active, r, r_prev)
-        theta_prev = np.where(active, theta, theta_prev)
-        phi_prev = np.where(active, phi, phi_prev)
+        keep = ~done
+        if not keep.all():
+            idx, y, bw, qw = idx[keep], y[:, keep], bw[keep], qw[keep]
+            r, theta, phi = r[keep], theta[keep], phi[keep]
+        r_prev, theta_prev, phi_prev = r, theta, phi
 
     return (radius.reshape(h, w), b.reshape(h, w), azimuth.reshape(h, w),
             captured.reshape(h, w))

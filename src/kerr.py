@@ -89,7 +89,10 @@ def kerr_redshift_factor(r, b, a, doppler_strength=1.0):
 def _potential(r, theta, b, q, a):
     """U = (R + Delta*Theta) / (2 Delta rho^2); the q term cancels in R+DT."""
     ct2 = np.cos(theta) ** 2
-    st2 = np.sin(theta) ** 2
+    # Softly regularize sin^2(theta) so the b^2/sin^2 term and its derivative
+    # stay finite and smooth at the spin axis, where Boyer-Lindquist
+    # coordinates are singular; only a hair-thin polar region is affected.
+    st2 = np.sin(theta) ** 2 + 1.0e-9
     d = r * r - 2.0 * r + a * a
     rr2 = r * r + a * a * ct2
     P = r * r + a * a - a * b
