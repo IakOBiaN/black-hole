@@ -13,7 +13,7 @@ from src.disk import Disk
 from src.kerr import isco
 
 MASS = 1.0
-SPIN = 0.998          # 0 = Schwarzschild, up to ~0.999 = near-extremal Kerr
+SPIN = 0.999          # 0 = Schwarzschild, up to ~0.999 = near-extremal Kerr
 MODE = "beautiful"
 SUPERSAMPLE = 2
 

@@ -139,7 +139,7 @@ def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=5000.0,
                       doppler_strength=None, texture_kwargs=None):
     """Full Kerr render: trace the rotating black hole, shade the equatorial
     disk with the Kerr circular-orbit redshift, add bloom, tone map."""
-    from .kerr_tracer import trace_batch_kerr
+    from .kerr_numba import trace_batch_kerr
     from .kerr import kerr_redshift_factor
     from .postprocess import add_bloom
     from .color import tonemap
