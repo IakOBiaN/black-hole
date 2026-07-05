@@ -101,9 +101,9 @@ def _potential(r, theta, b, q, a):
     return (R + d * Theta) / (2.0 * d * rr2)
 
 
-def rhs(y, b, q, a, h=1.0e-6):
-    """Right-hand side of the null geodesic equations for state
-    y = [r, theta, phi, p_r, p_theta]."""
+def rhs_numerical(y, b, q, a, h=1.0e-6):
+    """Right-hand side via finite-difference derivatives; kept as the
+    validated reference for the analytic rhs."""
     r, theta, phi, p_r, p_theta = y
     d = delta(r, a)
     rr2 = rho2(r, theta, a)
@@ -121,6 +121,55 @@ def rhs(y, b, q, a, h=1.0e-6):
 
     dp_r = (hamiltonian(r + h, theta) - hamiltonian(r - h, theta)) / (2.0 * h)
     dp_theta = (hamiltonian(r, theta + h) - hamiltonian(r, theta - h)) / (2.0 * h)
+    return np.array([dr, dtheta, dphi, dp_r, dp_theta])
+
+
+def rhs(y, b, q, a):
+    """Right-hand side of the null geodesic equations for state
+    y = [r, theta, phi, p_r, p_theta], with analytic derivatives.
+
+    G = -Delta/(2 rho^2) p_r^2 - 1/(2 rho^2) p_theta^2 + U, where the potential
+    U = N/(2 Delta rho^2) and N = R + Delta*Theta = P^2 - Delta*B with
+    P = r^2+a^2-a b and B = (b-a)^2 + cos^2(theta)(b^2/sin^2(theta) - a^2)."""
+    r, theta, phi, p_r, p_theta = y
+    ct, stn = np.cos(theta), np.sin(theta)
+    ct2 = ct * ct
+    st2 = stn * stn + 1.0e-9
+
+    rr2 = r * r + a * a * ct2
+    d = r * r - 2.0 * r + a * a
+    P = r * r + a * a - a * b
+    bb = (b - a) ** 2 + ct2 * (b * b / st2 - a * a)
+    n = P * P - d * bb
+
+    dr = d / rr2 * p_r
+    dtheta = p_theta / rr2
+
+    # dphi = -dU/db
+    db_db = 2.0 * (b - a) + 2.0 * b * ct2 / st2
+    dn_db = -2.0 * a * P - d * db_db
+    dphi = -dn_db / (2.0 * d * rr2)
+
+    # dp_r = dG/dr
+    drr2_dr = 2.0 * r
+    dd_dr = 2.0 * r - 2.0
+    dn_dr = 2.0 * P * (2.0 * r) - dd_dr * bb
+    t1 = -0.5 * p_r * p_r * (dd_dr * rr2 - d * drr2_dr) / (rr2 * rr2)
+    t2 = 0.5 * p_theta * p_theta * drr2_dr / (rr2 * rr2)
+    drrho = d * rr2
+    ddrrho_dr = dd_dr * rr2 + d * drr2_dr
+    t3 = 0.5 * (dn_dr * drrho - n * ddrrho_dr) / (drrho * drrho)
+    dp_r = t1 + t2 + t3
+
+    # dp_theta = dG/dtheta
+    drr2_dth = -2.0 * a * a * stn * ct
+    db_dth = -2.0 * b * b * ct / (st2 * stn) + 2.0 * a * a * stn * ct
+    dn_dth = -d * db_dth
+    s1 = 0.5 * d * p_r * p_r * drr2_dth / (rr2 * rr2)
+    s2 = 0.5 * p_theta * p_theta * drr2_dth / (rr2 * rr2)
+    s3 = 0.5 / d * (dn_dth * rr2 - n * drr2_dth) / (rr2 * rr2)
+    dp_theta = s1 + s2 + s3
+
     return np.array([dr, dtheta, dphi, dp_r, dp_theta])
 
 

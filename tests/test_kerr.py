@@ -1,7 +1,19 @@
 import numpy as np
 
 from src.kerr import (horizon_radius, photon_orbit_radii, photon_orbit_b,
-                      equatorial_ray_status)
+                      equatorial_ray_status, rhs, rhs_numerical)
+
+
+def test_analytic_rhs_matches_numerical():
+    rng = np.random.default_rng(0)
+    for a in (0.0, 0.9, 0.998):
+        for _ in range(300):
+            y = np.array([rng.uniform(1.3, 30.0), rng.uniform(0.3, np.pi - 0.3),
+                          0.0, rng.uniform(-3, 3), rng.uniform(-3, 3)])
+            b, q = rng.uniform(-8, 8), rng.uniform(0, 20)
+            analytic = rhs(y, b, q, a)
+            numerical = rhs_numerical(y, b, q, a)
+            assert np.allclose(analytic, numerical, rtol=1.0e-3, atol=1.0e-6)
 
 
 def test_horizon_radius():
