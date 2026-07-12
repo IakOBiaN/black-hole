@@ -1,11 +1,13 @@
 """Vectorized ray tracer for a Kerr black hole.
 
-Each camera ray is converted into the photon's conserved quantities (axial
-angular momentum b and Carter constant q) using the FIDO orthonormal frame
-of James et al. (2015), then the 3D null geodesic is marched with a
-fixed-step RK4. The camera is assumed far enough that it is essentially a
-FIDO (frame dragging is negligible at the camera radius). Rays are classified
-as hitting the equatorial disk, the horizon, or escaping to infinity.
+Each camera ray is converted into the conserved quantities (axial angular
+momentum b and Carter constant q) of the *received* photon using the FIDO
+orthonormal frame of James et al. (2015), Appendix A.1: the photon's
+propagation direction n_F points into the camera, so n_F = -d for camera ray
+direction d, and the null geodesic is marched backward in time (negative
+affine steps) with a fixed-step RK4. The camera is treated as a FIDO. Rays
+are classified as hitting the equatorial disk, the horizon, or escaping to
+infinity.
 """
 
 import numpy as np
@@ -47,9 +49,10 @@ def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000,
     st, ct = np.sin(theta_c), np.cos(theta_c)
     r_hat = np.array([st, 0.0, ct])
     theta_hat = np.array([ct, 0.0, -st])
-    n_r = d @ r_hat
-    n_theta = d @ theta_hat
-    n_phi = d[:, 1]  # phi_hat = (0, 1, 0) at phi = 0
+    # The received photon propagates opposite to the look direction d.
+    n_r = -(d @ r_hat)
+    n_theta = -(d @ theta_hat)
+    n_phi = -d[:, 1]  # phi_hat = (0, 1, 0) at phi = 0
 
     rho_c = np.sqrt(rho2(r_c, theta_c, a))
     delta_c = delta(r_c, a)
@@ -80,9 +83,10 @@ def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000,
         # the potential blow up) and near the spin axis (sin(theta) -> 0).
         pole_dist = np.minimum(theta_prev, np.pi - theta_prev)
         delta_prev = delta(r_prev, a)
-        dz = (dzeta * np.clip(r_prev / 5.0, 0.5, 4.0)
-              * np.clip((pole_dist / 0.4) ** 2, 0.01, 1.0)
-              * np.clip(delta_prev / 0.3, 0.05, 1.0))
+        # Negative affine step: the ray is integrated backward in time.
+        dz = -(dzeta * np.clip(r_prev / 5.0, 0.5, 4.0)
+               * np.clip((pole_dist / 0.4) ** 2, 0.01, 1.0)
+               * np.clip(delta_prev / 0.3, 0.05, 1.0))
         y = _rk4_step(y, bw, qw, a, dz)
 
         # Reflect rays that step over a pole: theta stays in [0, pi], p_theta

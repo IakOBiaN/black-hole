@@ -51,7 +51,10 @@ def trace_batch(camera, mass, disk, dphi=0.02, max_steps=1500,
     b = r0 * sin_psi / np.sqrt(lapse0)
     disc = 1.0 / np.where(radial, 1.0, b) ** 2 - u0 * u0 * (1.0 - rs * u0)
     du0 = np.where(cos_psi < 0.0, 1.0, -1.0) * np.sqrt(np.clip(disc, 0.0, None))
-    bz = np.cross(np.broadcast_to(pos, d.shape), d)[:, 2] / np.sqrt(lapse0)
+    # z angular momentum of the *received* photon, which propagates opposite
+    # to the look direction d (fixes the Doppler sign: the approaching side
+    # of the disk is blueshifted).
+    bz = -np.cross(np.broadcast_to(pos, d.shape), d)[:, 2] / np.sqrt(lapse0)
 
     cz1, cz2 = e1[2], e2[:, 2]
     u_horizon = 1.0 / rs

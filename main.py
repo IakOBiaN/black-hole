@@ -1,36 +1,43 @@
 """Render the current scene to out/.
 
-A black hole with a thin accretion disk on a black background: blackbody color
-from the temperature profile, relativistic Doppler and gravitational shifts, a
-procedural gas texture, and bloom. Set SPIN = 0 for a Schwarzschild hole (fast
-path) or SPIN in (0, 1) for a rotating Kerr hole -- the real Gargantua, with an
-asymmetric shadow, frame dragging and a disk reaching down to the ISCO.
+The Interstellar shot: a Kerr black hole with the artist-style accretion
+disk of James et al. (2015) -- physically thin, marginally optically thick,
+filamentary, with a ragged outer edge -- lensed by backward ray tracing
+through the Kerr metric. Geometry follows the paper's Fig. 15: spin
+a/M = 0.6 (Nolan and Franklin slowed Gargantua's spin for visual clarity),
+camera at r = 74.1M, theta = 86.56 degrees (3.44 degrees above the disk
+plane), disk at a constant 4500 K reaching in to the ISCO (3.83M). The
+inner radius is fitted to the paper's Fig. 15a: its lensed dome and front
+band only match if the disk extends to near-ISCO radii (the 9.26M-18.7M
+annulus quoted in Fig. 13's caption is the pedagogical paint-swatch disk,
+not this one), and the ISCO orbital speed ~0.55c is exactly the disk speed
+the paper quotes.
+
+MODE "beautiful" reproduces the movie treatment: no Doppler/gravitational
+colour or brightness shifts (Fig. 15a) plus a soft veiling glow standing in
+for IMAX lens flare (Fig. 16). MODE "accurate" turns on the physically
+complete frequency shifts (Fig. 15c): blue and bright on the approaching
+side, red and dim on the receding side.
 """
 
 from src.camera import Camera
-from src.renderer import render_disk_image, render_kerr_image, save_png
+from src.renderer import render_kerr_image, save_png
 from src.disk import Disk
 from src.kerr import isco
 
-MASS = 1.0
-SPIN = 0.998          # 0 = Schwarzschild, up to ~0.999 = near-extremal Kerr
-MODE = "beautiful"
-SUPERSAMPLE = 2
+SPIN = 0.6
+DISK = Disk(inner=isco(SPIN), outer=18.7)
+CAMERA = Camera(distance=74.1, resolution=(1100, 500), fov_deg=19.0,
+                inclination_deg=3.44)
+
+MODE = "beautiful"          # "beautiful" (movie look) or "accurate"
+SUPERSAMPLE = 3
 
 
 def main():
-    if SPIN <= 0.0:
-        camera = Camera(distance=33.0, resolution=(720, 480),
-                        fov_deg=52.0, inclination_deg=10.0)
-        disk = Disk(inner=6.0 * MASS, outer=14.0 * MASS)
-        image = render_disk_image(camera, MASS, disk, mode=MODE,
-                                  t_peak=5000.0, supersample=SUPERSAMPLE)
-    else:
-        camera = Camera(distance=33.0, resolution=(720, 480),
-                        fov_deg=40.0, inclination_deg=15.0)
-        disk = Disk(inner=isco(SPIN), outer=14.0)
-        image = render_kerr_image(camera, SPIN, disk, mode=MODE,
-                                  t_peak=5000.0, supersample=SUPERSAMPLE)
+    image = render_kerr_image(CAMERA, SPIN, DISK, mode=MODE,
+                              supersample=SUPERSAMPLE, dzeta=0.07,
+                              max_steps=9000)
     save_png(image, "out/disk.png")
 
 

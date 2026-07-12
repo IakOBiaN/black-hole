@@ -21,7 +21,11 @@ def test_frame_dragging_shifts_the_shadow():
     centroid_schwarzschild = _shadow_centroid_col(0.0)
     centroid_kerr = _shadow_centroid_col(0.9)
 
-    # Non-spinning shadow is centered; frame dragging displaces the spinning
-    # shadow sideways.
+    # Non-spinning shadow is centered. With the disk orbiting prograde
+    # (counterclockwise seen from +z) and the camera on +x, screen-left
+    # (-y) material approaches the camera; prograde photons can orbit
+    # closer, so the shadow flattens on the approaching (left) side and its
+    # centroid shifts right -- as in Fig. 14 of James et al. ("the flattened
+    # left edge of the black-hole shadow") and EHT images of M87*.
     assert abs(centroid_schwarzschild - center) < 2.0
-    assert centroid_kerr < centroid_schwarzschild - 3.0
+    assert centroid_kerr > centroid_schwarzschild + 3.0

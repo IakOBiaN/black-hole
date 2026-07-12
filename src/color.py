@@ -72,9 +72,9 @@ def tonemap(linear, mode, exposure=None, saturation=None, highlight_desat=None,
     their hue), while the brightest regions are pushed toward white for a
     film-like white-hot highlight response."""
     if exposure is None:
-        exposure = 1.4 if mode == "beautiful" else 1.0
+        exposure = 1.8 if mode == "beautiful" else 1.2
     if saturation is None:
-        saturation = 1.35 if mode == "beautiful" else 1.15
+        saturation = 1.12 if mode == "beautiful" else 1.0
     if highlight_desat is None:
         highlight_desat = 0.9 if mode == "beautiful" else 0.5
 

@@ -134,35 +134,120 @@ def render_disk_image(camera, mass, disk, mode="beautiful", t_peak=5000.0,
     return tonemap(add_bloom(linear, bloom_strength), mode)
 
 
-def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=5000.0,
-                      supersample=1, bloom_strength=None, texture_contrast=1.0,
-                      doppler_strength=None, texture_kwargs=None):
-    """Full Kerr render: trace the rotating black hole, shade the equatorial
-    disk with the Kerr circular-orbit redshift, add bloom, tone map."""
-    from .kerr_numba import trace_batch_kerr
+# Luma weights used by James et al. (2015), Appendix "DNGR modelling of
+# accretion disks", to strip the Doppler-induced intensity change while
+# keeping the perceived colour: {R,G,B}/(0.30R + 0.59G + 0.11B).
+_LUMA_FILM = np.array([0.30, 0.59, 0.11])
+
+
+def _blackbody_hue_lut(t_max, n=768):
+    from .color import blackbody_color
+
+    samples = np.linspace(500.0, t_max, n)
+    lut = np.array([blackbody_color(t) for t in samples])
+
+    def sample(temps):
+        clamped = np.clip(temps, samples[0], samples[-1])
+        return np.stack([np.interp(clamped, samples, lut[:, c])
+                         for c in range(3)], axis=-1)
+    return sample
+
+
+def _shifted_disk_color(t_emit, g, t_ref, shift_mode, hue_of):
+    """Linear RGB of blackbody disk samples under the article's three
+    treatments of the Doppler + gravitational frequency shift (Fig. 15):
+
+    - "none": no shift at all -- the disk as painted (Fig. 15a);
+    - "hue":  colours shifted (T_obs = g T), but the intensity change removed
+      by normalizing with the film-luma weighted mean (Fig. 15b);
+    - "full": colours shifted and specific intensity transported per
+      Liouville's theorem, I ~ g^4 for a blackbody (Fig. 15c).
+    """
+    t_emit = np.broadcast_to(np.asarray(t_emit, dtype=float), np.shape(g))
+    if shift_mode == "none":
+        hue = hue_of(t_emit)
+        brightness = (t_emit / t_ref) ** 4
+    elif shift_mode == "hue":
+        hue = hue_of(g * t_emit)
+        luma = hue @ _LUMA_FILM
+        luma_ref = hue_of(t_emit) @ _LUMA_FILM
+        hue = hue * (luma_ref / np.maximum(luma, 1.0e-9))[:, None]
+        brightness = (t_emit / t_ref) ** 4
+    elif shift_mode == "full":
+        hue = hue_of(g * t_emit)
+        brightness = (g * t_emit / t_ref) ** 4
+    else:
+        raise ValueError(f"unknown shift_mode {shift_mode!r}")
+    return hue * brightness[:, None]
+
+
+def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=4500.0,
+                      supersample=2, bloom_strength=None, shift_mode=None,
+                      temp_profile="constant", doppler_strength=1.0,
+                      max_hits=8, dzeta=0.1, max_steps=6000,
+                      texture_kwargs=None):
+    """Full Kerr render of the semi-transparent artist disk.
+
+    Rays record every crossing of the equatorial plane; the lensed disk
+    layers are composited front to back with the material's opacity, so the
+    secondary images shine through gaps and past the ragged edge.
+
+    shift_mode is "none" (movie look, default for mode="beautiful"), "hue"
+    or "full" (physically complete, default for mode="accurate").
+    temp_profile is "constant" (the article's 4500 K disk) or "shakura"
+    (zero-torque thin-disk profile peaking at t_peak).
+    """
+    from .kerr_numba import trace_batch_kerr_multi
     from .kerr import kerr_redshift_factor
+    from .temperature import disk_temperature
+    from .texture import disk_material, debris_extent
     from .postprocess import add_bloom
     from .color import tonemap
 
-    if doppler_strength is None:
-        doppler_strength = 0.6 if mode == "beautiful" else 1.0
+    if shift_mode is None:
+        shift_mode = "none" if mode == "beautiful" else "full"
     if texture_kwargs is None:
         texture_kwargs = {}
 
     hi = camera.supersampled(supersample) if supersample > 1 else camera
-    radius, b, azimuth, _ = trace_batch_kerr(hi, spin, disk)
+    pos = hi.position
+    r_cam = float(np.linalg.norm(pos))
+    theta_cam = float(np.arccos(pos[2] / r_cam))
 
-    linear = np.zeros(radius.shape + (3,))
-    mask = ~np.isnan(radius)
-    if mask.any():
-        g = kerr_redshift_factor(radius[mask], b[mask], spin, doppler_strength)
-        linear[mask] = _disk_emission(radius[mask], g, azimuth[mask], disk.inner,
-                                      t_peak, texture_contrast, texture_kwargs)
+    debris_ratio = texture_kwargs.get("debris_ratio", 0.16)
+    r_min = disk.inner * 0.98
+    r_max = debris_extent(disk.inner, disk.outer, debris_ratio)
+    hits_r, hits_phi, n_hits, b, _ = trace_batch_kerr_multi(
+        hi, spin, r_min, r_max, max_hits=max_hits, dzeta=dzeta,
+        max_steps=max_steps)
+
+    hue_of = _blackbody_hue_lut(6.0 * t_peak)
+    linear = np.zeros(n_hits.shape + (3,))
+    transmit = np.ones(n_hits.shape)
+    for k in range(max_hits):
+        mask = (n_hits > k) & (transmit > 1.0e-3)
+        if not mask.any():
+            break
+        r = hits_r[..., k][mask]
+        phi = hits_phi[..., k][mask]
+        emission, alpha = disk_material(r, phi, disk.inner, disk.outer,
+                                        **texture_kwargs)
+        if temp_profile == "constant":
+            t_emit = np.full_like(r, t_peak)
+        else:
+            t_emit = disk_temperature(r, disk.inner, t_peak)
+        g = kerr_redshift_factor(r, b[mask], spin, doppler_strength,
+                                 r_cam=r_cam, theta_cam=theta_cam)
+        color = _shifted_disk_color(t_emit, g, t_peak, shift_mode, hue_of)
+        weight = transmit[mask] * alpha * emission
+        linear[mask] += weight[:, None] * color
+        transmit[mask] *= 1.0 - alpha
+
     if supersample > 1:
         linear = _downsample(linear, supersample)
 
     if bloom_strength is None:
-        bloom_strength = 0.9 if mode == "beautiful" else 0.4
+        bloom_strength = 0.75 if mode == "beautiful" else 0.4
     return tonemap(add_bloom(linear, bloom_strength), mode)
 
 

@@ -1,10 +1,19 @@
 """Numba-accelerated Kerr ray tracer.
 
-Same physics as src/kerr_tracer.py, but each ray is integrated by a compiled
-per-ray kernel and the rays are spread across CPU cores with prange, instead
-of marching the whole batch in lockstep with numpy. The Carter constant q does
-not enter the analytic right-hand side (it cancels in R + Delta*Theta), so the
-kernel only needs the axial angular momentum b.
+Backward ray tracing per James et al. (2015), Appendix A.1: for each pixel we
+take the momentum of the *received* photon -- its propagation direction n_F
+points from the scene into the camera, so n_F = -d for a camera ray direction
+d -- with FIDO-measured energy E_F = 1/(alpha + omega varpi n_F_phi), and
+integrate the super-Hamiltonian ray equations backward in time (negative
+affine steps) from the camera into the scene. This gets both the trajectory
+and the sign of the photon's axial angular momentum b right; b feeds the
+Doppler shift, so the approaching side of the disk blueshifts.
+
+Each ray is integrated by a compiled per-ray kernel spread across CPU cores
+with prange. Rays record up to `max_hits` crossings of the equatorial plane
+inside [r_min, r_max] and keep going, so a semi-transparent disk can be
+composited from several lensed layers (the disk in the article is only
+marginally optically thick).
 """
 
 import numpy as np
@@ -58,16 +67,23 @@ def _rhs(r, theta, p_r, p_theta, b, a):
 
 
 @njit(cache=True, fastmath=True)
-def _trace_ray(r, theta, p_r, p_theta, b, a, inner, outer, r_h, r_escape,
-               dzeta, max_steps):
+def _trace_ray(r, theta, p_r, p_theta, b, a, r_min, r_max, r_h, r_escape,
+               dzeta, max_steps, hit_r, hit_phi):
+    """March one ray backward in time; record equatorial crossings with
+    radius in [r_min, r_max] into hit_r/hit_phi (length = max hits). Returns
+    (number of hits, captured flag)."""
+    max_hits = hit_r.shape[0]
+    n_hits = 0
     phi = 0.0
     r_prev, theta_prev, phi_prev = r, theta, phi
     for _ in range(max_steps):
         pole_dist = min(theta_prev, np.pi - theta_prev)
         delta_prev = r_prev * r_prev - 2.0 * r_prev + a * a
-        dz = (dzeta * min(max(r_prev / 5.0, 0.5), 4.0)
-              * min(max((pole_dist / 0.4) ** 2, 0.01), 1.0)
-              * min(max(delta_prev / 0.3, 0.05), 1.0))
+        # Backward in time: negative affine step, shrunk near the horizon
+        # (Delta -> 0) and the spin axis where Boyer-Lindquist is singular.
+        dz = -(dzeta * min(max(r_prev / 5.0, 0.5), 4.0)
+               * min(max((pole_dist / 0.4) ** 2, 0.01), 1.0)
+               * min(max(delta_prev / 0.3, 0.05), 1.0))
 
         k1 = _rhs(r, theta, p_r, p_theta, b, a)
         k2 = _rhs(r + 0.5 * dz * k1[0], theta + 0.5 * dz * k1[1],
@@ -90,51 +106,55 @@ def _trace_ray(r, theta, p_r, p_theta, b, a, inner, outer, r_h, r_escape,
 
         delta_new = rn * rn - 2.0 * rn + a * a
         if rn <= r_h or delta_new <= 1.0e-2 or rn < 0.0:
-            return np.nan, np.nan, 1        # captured
+            return n_hits, 1                # fell to the horizon
         if rn >= r_escape:
-            return np.nan, np.nan, 0        # escaped
+            return n_hits, 0                # left the scene
 
         if (theta_prev - _HALF_PI) * (tn - _HALF_PI) < 0.0:
             frac = (_HALF_PI - theta_prev) / (tn - theta_prev)
             r_cross = r_prev + frac * (rn - r_prev)
-            if inner <= r_cross <= outer:
-                az = phi_prev + frac * (pn - phi_prev)
-                return r_cross, az, 0       # disk hit
+            if r_min <= r_cross <= r_max:
+                hit_r[n_hits] = r_cross
+                hit_phi[n_hits] = phi_prev + frac * (pn - phi_prev)
+                n_hits += 1
+                if n_hits >= max_hits:
+                    return n_hits, 0
 
         r, theta, phi, p_r, p_theta = rn, tn, pn, prn, ptn
         r_prev, theta_prev, phi_prev = r, theta, phi
 
-    return np.nan, np.nan, 0
+    return n_hits, 0
 
 
 @njit(cache=True, parallel=True, fastmath=True)
-def _trace_all(r_c, theta_c, p_r, p_theta, b, a, inner, outer, r_h, r_escape,
-               dzeta, max_steps, radius, azimuth, captured):
+def _trace_all(r_c, theta_c, p_r, p_theta, b, a, r_min, r_max, r_h, r_escape,
+               dzeta, max_steps, hits_r, hits_phi, n_hits, captured):
     for i in prange(p_r.shape[0]):
-        rc, az, cap = _trace_ray(r_c, theta_c, p_r[i], p_theta[i], b[i], a,
-                                  inner, outer, r_h, r_escape, dzeta, max_steps)
-        radius[i] = rc
-        azimuth[i] = az
+        n, cap = _trace_ray(r_c, theta_c, p_r[i], p_theta[i], b[i], a,
+                            r_min, r_max, r_h, r_escape, dzeta, max_steps,
+                            hits_r[i], hits_phi[i])
+        n_hits[i] = n
         captured[i] = cap
 
 
-def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000, r_escape=None):
-    """Trace all rays with the Numba kernel. Returns (radius, b, azimuth,
-    captured), matching src.kerr_tracer.trace_batch_kerr."""
+def _camera_momenta(camera, a):
+    """Conserved quantities of the received photon for every pixel: canonical
+    p_r, p_theta and axial angular momentum b = p_phi, with -p_t = 1. The
+    camera is treated as a FIDO (article eq. A.9 with beta = 0)."""
     pos = camera.position
     r_c = float(np.linalg.norm(pos))
     theta_c = float(np.arccos(pos[2] / r_c))
-    if r_escape is None:
-        r_escape = 1.2 * r_c
 
     dirs = camera.ray_directions()
     h, w, _ = dirs.shape
     d = dirs.reshape(-1, 3)
 
     st, ct = np.sin(theta_c), np.cos(theta_c)
-    n_r = d @ np.array([st, 0.0, ct])
-    n_theta = d @ np.array([ct, 0.0, -st])
-    n_phi = d[:, 1]
+    # n_F points along the incoming photon's propagation: opposite to the
+    # camera's look direction d.
+    n_r = -(d @ np.array([st, 0.0, ct]))
+    n_theta = -(d @ np.array([ct, 0.0, -st]))
+    n_phi = -d[:, 1]
 
     rho_c = np.sqrt(rho2(r_c, theta_c, a))
     e_f = 1.0 / (alpha(r_c, theta_c, a)
@@ -142,14 +162,46 @@ def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000, r_escape=None):
     p_r = e_f * rho_c / np.sqrt(delta(r_c, a)) * n_r
     p_theta = e_f * rho_c * n_theta
     b = e_f * varpi(r_c, theta_c, a) * n_phi
+    return r_c, theta_c, (h, w), p_r, p_theta, b
 
-    n = d.shape[0]
-    radius = np.empty(n)
-    azimuth = np.empty(n)
+
+def trace_batch_kerr_multi(camera, a, r_min, r_max, max_hits=8, dzeta=0.1,
+                           max_steps=6000, r_escape=None):
+    """Trace all rays, recording up to max_hits equatorial crossings each.
+
+    Returns (hits_r, hits_phi, n_hits, b, captured): hits_r and hits_phi have
+    shape (H, W, max_hits) ordered front (camera side) to back, n_hits the
+    crossing count per pixel, b the photon axial angular momentum, captured a
+    mask of rays that end on the horizon."""
+    r_c, theta_c, (h, w), p_r, p_theta, b = _camera_momenta(camera, a)
+    if r_escape is None:
+        r_escape = 1.2 * r_c
+
+    n = p_r.shape[0]
+    hits_r = np.empty((n, max_hits))
+    hits_phi = np.empty((n, max_hits))
+    n_hits = np.empty(n, dtype=np.int64)
     captured = np.empty(n, dtype=np.int8)
-    _trace_all(r_c, theta_c, p_r, p_theta, b, a, disk.inner, disk.outer,
+    _trace_all(r_c, theta_c, p_r, p_theta, b, a, r_min, r_max,
                horizon_radius(a) * 1.002, r_escape, dzeta, max_steps,
-               radius, azimuth, captured)
+               hits_r, hits_phi, n_hits, captured)
 
-    return (radius.reshape(h, w), b.reshape(h, w), azimuth.reshape(h, w),
+    return (hits_r.reshape(h, w, max_hits), hits_phi.reshape(h, w, max_hits),
+            n_hits.reshape(h, w), b.reshape(h, w),
             captured.reshape(h, w).astype(bool))
+
+
+def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000,
+                     r_escape=None):
+    """Single-hit opaque-disk trace. Returns (radius, b, azimuth, captured),
+    matching src.kerr_tracer.trace_batch_kerr: radius/azimuth of the first
+    disk crossing (NaN if none), captured True only for rays that reach the
+    horizon without hitting the disk."""
+    hits_r, hits_phi, n_hits, b, captured = trace_batch_kerr_multi(
+        camera, a, disk.inner, disk.outer, max_hits=1, dzeta=dzeta,
+        max_steps=max_steps, r_escape=r_escape)
+
+    hit = n_hits > 0
+    radius = np.where(hit, hits_r[..., 0], np.nan)
+    azimuth = np.where(hit, hits_phi[..., 0], np.nan)
+    return radius, b, azimuth, captured & ~hit

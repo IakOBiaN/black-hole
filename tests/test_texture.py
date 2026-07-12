@@ -1,8 +1,9 @@
 import numpy as np
 
-from src.texture import disk_pattern
+from src.texture import disk_pattern, disk_material, debris_extent
 
 R_IN = 6.0
+INNER, OUTER = 9.26, 18.7
 
 
 def test_pattern_in_unit_range():
@@ -23,3 +24,43 @@ def test_pattern_is_deterministic():
     r = np.linspace(6.1, 13.9, 50)
     az = np.linspace(-1.0, 1.0, 50)
     assert np.array_equal(disk_pattern(r, az, R_IN), disk_pattern(r, az, R_IN))
+
+
+def test_material_ranges():
+    rng = np.random.default_rng(7)
+    r = rng.uniform(INNER * 0.98, debris_extent(INNER, OUTER), 4000)
+    az = rng.uniform(-np.pi, np.pi, 4000)
+    emission, alpha = disk_material(r, az, INNER, OUTER)
+    assert np.all(emission >= 0.0)
+    assert np.all((alpha >= 0.0) & (alpha <= 1.0))
+
+
+def test_material_seamless_across_azimuth_wrap():
+    r = np.linspace(INNER, OUTER, 300)
+    em_lo, al_lo = disk_material(r, np.full_like(r, -np.pi), INNER, OUTER)
+    em_hi, al_hi = disk_material(r, np.full_like(r, np.pi), INNER, OUTER)
+    assert np.allclose(em_lo, em_hi)
+    assert np.allclose(al_lo, al_hi)
+
+
+def test_material_vanishes_outside_debris_extent():
+    r_far = np.linspace(debris_extent(INNER, OUTER) * 1.001, OUTER * 2.0, 200)
+    emission, alpha = disk_material(r_far, np.zeros_like(r_far), INNER, OUTER)
+    assert np.allclose(emission, 0.0)
+    assert np.allclose(alpha, 0.0)
+
+
+def test_material_vanishes_inside_inner_edge():
+    r_in = np.linspace(INNER * 0.8, INNER * 0.999, 100)
+    emission, _ = disk_material(r_in, np.zeros_like(r_in), INNER, OUTER)
+    assert np.allclose(emission, 0.0)
+
+
+def test_material_outer_edge_is_ragged():
+    # The nominal-edge neighbourhood must mix opaque and clear samples as
+    # the edge radius wanders with azimuth.
+    az = np.linspace(-np.pi, np.pi, 2000, endpoint=False)
+    r = np.full_like(az, OUTER * 0.97)
+    _, alpha = disk_material(r, az, INNER, OUTER)
+    assert alpha.max() > 0.3
+    assert alpha.min() < 0.05

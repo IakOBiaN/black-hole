@@ -61,7 +61,9 @@ def trace(pos, direction, mass, disk, r_escape_factor=1.1,
     photon z angular momentum per energy (for the Doppler shift)."""
     r0, e1, e2 = _orbital_basis(pos, direction)
     cos_psi = float(np.dot(direction, e1))
-    bz = float(np.cross(pos, direction)[2]) / np.sqrt(lapse_squared(r0, mass))
+    # The received photon propagates opposite to the traced direction, so its
+    # z angular momentum has the opposite sign.
+    bz = -float(np.cross(pos, direction)[2]) / np.sqrt(lapse_squared(r0, mass))
     if e2 is None:
         return ("horizon" if cos_psi < 0.0 else "background", None, bz)
 
