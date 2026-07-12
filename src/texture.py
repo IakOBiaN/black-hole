@@ -66,23 +66,33 @@ def _smoothstep(edge0, edge1, x):
     return t * t * (3.0 - 2.0 * t)
 
 
-def debris_extent(r_inner, r_outer, debris_ratio=0.16):
+def debris_extent(r_inner, r_outer, debris_ratio=0.22):
     """Outermost radius reached by the sparse debris beyond the nominal
     disk edge (the tracer must record crossings out to here)."""
     return r_inner * (r_outer / r_inner) ** (1.0 + debris_ratio)
 
 
-def disk_material(r, azimuth, r_inner, r_outer,
-                  n_filaments=42.0, streak_cells=6, twist=1.0,
-                  gap_freq=6.0, gap_depth=0.8,
-                  edge_ratio=0.17, debris_ratio=0.16,
-                  envelope_scale=1.2, tau=4.0):
+def disk_material(r, azimuth, r_inner, r_outer, time=0.0,
+                  shear_ages=(30.0, 110.0, 380.0),
+                  gap_freq=3.5, gap_depth=0.45,
+                  edge_ratio=0.17, debris_ratio=0.22,
+                  envelope_scale=0.9, tau=4.0):
     """Emission weight and opacity of the artist-style accretion disk.
 
     Modeled on the Double Negative Interstellar disk (James et al. 2015,
-    Figs. 14-15): a physically thin, marginally optically thick sheet with
-    fine filaments stretched along the orbital flow, darker ring gaps, a
-    ragged noise-modulated outer edge and sparse debris flung beyond it.
+    Figs. 14-15): a milky, marginally optically thick sheet of gas drawn
+    out by the orbital shear, a few shallow darker lanes in its outer half,
+    and ragged edges where the gas thins into feathery streaks.
+
+    The gas field is built by differential-rotation advection: noise is
+    sampled at the azimuth phi - Omega(r) * age with the Keplerian
+    Omega ~ r^(-3/2), for several ages at once. An initially roundish blob
+    is sheared into a trailing spiral streak whose winding grows with age
+    and with Omega's gradient -- so the inner disk shows tightly wound
+    threads while the outer edge keeps open, freshly curled swirls and
+    clumps, like real turbulent gas rather than concentric circles. Past
+    the noisy outer edge a rising survival threshold keeps only the densest
+    gas, which tapers away by the debris extent.
 
     r, azimuth are arrays over disk samples. Returns (emission, alpha):
     emission is a dimensionless brightness weight (order unity in the bright
@@ -93,50 +103,92 @@ def disk_material(r, azimuth, r_inner, r_outer,
     # Normalized log-radius: 0 at the inner edge, 1 at the nominal outer
     # edge; the debris zone extends beyond 1.
     x = np.log(np.maximum(r, 1.0e-9) / r_inner) / np.log(r_outer / r_inner)
-    phi_n = (np.asarray(azimuth) / _TWO_PI) % 1.0
 
-    # Fine filaments: high radial frequency, few azimuthal cells, so noise
-    # features become thin arcs stretched along the orbital flow, sheared
-    # into trailing spirals by the differential-rotation twist.
-    u = n_filaments * x
-    v = streak_cells * (phi_n + twist * x)
-    fil = _fbm(u, v, streak_cells, octaves=5)
-    fil = fil * fil * (3.0 - 2.0 * fil)          # sharpen toward threads
-    fine = _fbm(2.7 * u + 11.3, 2.0 * v + 4.7, 2 * streak_cells, octaves=4)
-    fil = np.clip(0.62 * fil + 0.58 * fine * fine, 0.0, 1.2) ** 1.35
+    # Keplerian angular velocity (geometrized units, M = 1).
+    omega_k = np.maximum(r, 0.5 * r_inner) ** -1.5
 
-    # Slow radial modulation carving darker, slightly wavy ring gaps.
-    gp = _fbm(gap_freq * x + 0.37, 2.0 * phi_n, 2, octaves=3)
-    gaps = (1.0 - gap_depth) + gap_depth * _smoothstep(0.40, 0.60, gp)
+    # Time evolution: every gas element orbits at its own Keplerian rate, so
+    # the whole pattern (fibres, billows, lanes, edge silhouette) is sampled
+    # at the advected azimuth and keeps shearing as time runs.
+    phi = np.asarray(azimuth, dtype=float) - omega_k * time
+    phi_n = (phi / _TWO_PI) % 1.0
 
-    # Ragged outer edge: its radius wanders with azimuth.
-    edge_noise = _fbm(np.full_like(x, 0.29), 5.0 * phi_n, 5, octaves=4)
-    edge_noise = _smoothstep(0.15, 0.85, edge_noise)
+    # Layered shear advection, young (coarse, barely wound: visible swirls)
+    # to old (fine, tightly wound threads). The youngest layer's domain is
+    # additionally curled by a smooth warp that strengthens outward, so the
+    # edge breaks into eddies instead of arcs.
+    layer_cells = (10, 6, 3)
+    layer_scale = (12.0, 34.0, 80.0)
+    layer_gamma = (1.6, 1.8, 2.0)
+    weight_out = (1.5, 0.5, 0.3)       # relative weight at the outer edge
+    weight_in = (0.25, 0.6, 1.0)       # relative weight at the inner edge
+    blend = _smoothstep(0.15, 0.95, x)
+
+    thread = np.zeros_like(x)
+    total = np.zeros_like(x)
+    for k, age in enumerate(shear_ages):
+        cells = layer_cells[k]
+        pn = ((phi - omega_k * age) / _TWO_PI) % 1.0
+        u = layer_scale[k] * x + 17.3 * k
+        v = cells * pn
+        if k == 0:
+            curl = _smoothstep(0.25, 1.05, x)
+            half = max(cells // 2, 1)
+            vw = half * pn
+            wu = _fbm(2.1 * x + 8.3, vw + 4.1, half, octaves=3) - 0.5
+            wv = _fbm(2.6 * x + 2.9, vw + 9.7, half, octaves=3) - 0.5
+            u = u + 5.0 * curl * wu
+            v = v + 2.2 * curl * wv
+        n = _fbm(u, v, cells, octaves=5) ** layer_gamma[k]
+        w = weight_in[k] + (weight_out[k] - weight_in[k]) * blend
+        thread += w * n
+        total += w * 0.55 ** layer_gamma[k]   # rough fbm mean^gamma
+    thread = np.clip(thread / np.maximum(total, 1.0e-9) * 0.55, 0.0, 1.3)
+    thread = thread ** 1.7
+
+    # A few shallow, slightly wavy darker lanes, deepening outward.
+    lane = _fbm(gap_freq * x + 0.37, 2.0 * phi_n, 2, octaves=2)
+    lane_w = gap_depth * _smoothstep(0.10, 0.60, x)
+    lanes = 1.0 - lane_w * (1.0 - _smoothstep(0.42, 0.58, lane))
+
+    # Ragged edges: the edge radius wanders with azimuth, and beyond it a
+    # rising survival threshold thins the fibre field into feathery streaks
+    # that continue coherently outward instead of banding off.
+    edge_noise = _fbm(np.full_like(x, 0.29), 7.0 * phi_n, 7, octaves=5)
+    edge_noise = _smoothstep(0.10, 0.90, edge_noise)
     x_edge = 1.0 - edge_ratio * edge_noise
-    body_out = 1.0 - _smoothstep(x_edge - 0.05, x_edge + 0.015, x)
-    body_in = _smoothstep(0.0, 0.02, x)
+    x_max = 1.0 + debris_ratio
+    over = np.clip((x - x_edge) / np.maximum(x_max - x_edge, 1.0e-6),
+                   0.0, 1.0)
+    survive = _smoothstep(1.3 * over - 0.02, 1.3 * over + 0.20, thread)
+    body_out = np.where(x <= x_edge, 1.0,
+                        survive * np.exp(-1.6 * over))
+    body_out = np.where(x < x_max, body_out, 0.0)
+    # Feathered inner edge: the material thins toward the ISCO rather than
+    # cutting off, softening the lensed dark gap against the photon ring.
+    body_in = _smoothstep(-0.02, 0.06, x)
 
-    # Filaments modulate a continuous sheet rather than slicing it to
-    # ribbons: the disk body stays mostly optically thick with bright
-    # threads on top, as in the article's artist disk.
-    body = (0.32 + 0.68 * fil) * gaps * body_in * body_out
+    # Fibres modulate a continuous milky sheet inside; toward the edge the
+    # milky base drains away and large turbulent billows take over, so the
+    # rim dissolves into amplified cloud chaos as in the article's disk.
+    base = 0.30 - 0.14 * _smoothstep(0.5, 1.0, x)
+    pn_b = ((phi - omega_k * shear_ages[0]) / _TWO_PI) % 1.0
+    bil = _fbm(6.0 * x + 3.3, 4.0 * pn_b + 1.9, 4, octaves=4)
+    chaos = 1.0 + _smoothstep(0.45, 1.0, x) * 1.9 * (bil ** 1.5 - 0.32)
+    chaos = np.maximum(chaos, 0.15)
+    body = (base + 0.85 * thread) * chaos * lanes * body_in * body_out
 
-    # Sparse debris flung beyond the ragged edge: fine noise stretched into
-    # long trailing wisps by a strong differential-rotation shear, fading
-    # with distance and gone entirely past the debris extent. Seen nearly
-    # edge-on these read as the chaotic gas swirls at the far left and right
-    # of the disk in the article's figures.
-    spec = _fbm(1.3 * n_filaments * x + 31.7,
-                2 * streak_cells * (phi_n + 1.4 * x) + 17.1,
-                2 * streak_cells, octaves=4)
-    spec = np.clip((spec - 0.40) / 0.60, 0.0, 1.0) ** 1.4
-    beyond = np.clip((x - x_edge) / 0.10, 0.0, None)
-    debris = spec * np.exp(-beyond) * _smoothstep(-0.01, 0.02, x - x_edge)
-    debris = np.where(x < 1.0 + debris_ratio, debris, 0.0)
+    # Radial brightness envelope: a power law in radius, like the steep
+    # emissivity falloff of a real disk -- a blazing inner rim dropping by
+    # orders of magnitude toward dim, translucent outskirts. This gradient,
+    # not the texture, is what makes the lensed disk read as glowing gas
+    # around the hole instead of a uniformly bright sheet.
+    envelope = np.maximum(r / r_inner, 1.0e-9) ** -envelope_scale
 
-    # Radial brightness envelope: hot bright inner region fading outward.
-    envelope = np.exp(-envelope_scale * np.clip(x, 0.0, None))
+    # The gas also thins outward: the outer disk becomes a translucent haze
+    # rather than an opaque sheet.
+    tau_eff = tau * (0.25 + 0.75 * envelope ** 0.4)
 
-    emission = envelope * (2.2 * body + 2.4 * debris)
-    alpha = 1.0 - np.exp(-(tau * body + 1.2 * debris))
+    emission = envelope * 2.0 * body
+    alpha = 1.0 - np.exp(-tau_eff * body)
     return emission, np.clip(alpha, 0.0, 1.0)

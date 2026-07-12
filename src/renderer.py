@@ -181,26 +181,55 @@ def _shifted_disk_color(t_emit, g, t_ref, shift_mode, hue_of):
     return hue * brightness[:, None]
 
 
-def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=4500.0,
-                      supersample=2, bloom_strength=None, shift_mode=None,
-                      temp_profile="constant", doppler_strength=1.0,
-                      max_hits=8, dzeta=0.1, max_steps=6000,
-                      texture_kwargs=None):
-    """Full Kerr render of the semi-transparent artist disk.
+def trace_kerr_scene(camera, spin, disk, supersample=2, max_hits=8,
+                     dzeta=0.1, max_steps=6000, texture_kwargs=None):
+    """Geometry pass: trace every (supersampled) ray once and keep all
+    equatorial crossings. The Kerr metric is axisymmetric and static, so the
+    same traced scene can be re-shaded for any disk time and any camera
+    azimuth -- animations pay for tracing only once."""
+    from .kerr_numba import trace_batch_kerr_multi
+    from .texture import debris_extent
 
-    Rays record every crossing of the equatorial plane; the lensed disk
-    layers are composited front to back with the material's opacity, so the
-    secondary images shine through gaps and past the ragged edge.
+    if texture_kwargs is None:
+        texture_kwargs = {}
+    hi = camera.supersampled(supersample) if supersample > 1 else camera
+    pos = hi.position
+    r_cam = float(np.linalg.norm(pos))
+    theta_cam = float(np.arccos(pos[2] / r_cam))
+
+    debris_ratio = texture_kwargs.get("debris_ratio", 0.22)
+    r_min = disk.inner * 0.98
+    r_max = debris_extent(disk.inner, disk.outer, debris_ratio)
+    hits_r, hits_phi, n_hits, b, _ = trace_batch_kerr_multi(
+        hi, spin, r_min, r_max, max_hits=max_hits, dzeta=dzeta,
+        max_steps=max_steps)
+
+    return {"hits_r": hits_r, "hits_phi": hits_phi, "n_hits": n_hits,
+            "b": b, "r_cam": r_cam, "theta_cam": theta_cam,
+            "max_hits": max_hits, "supersample": supersample}
+
+
+def shade_kerr_scene(scene, spin, disk, mode="beautiful", t_peak=4500.0,
+                     bloom_strength=None, shift_mode=None,
+                     temp_profile="powerlaw", temp_exponent=0.45,
+                     doppler_strength=1.0, time=0.0, camera_azimuth=0.0,
+                     texture_kwargs=None, exposure=None, saturation=None):
+    """Shading pass: composite the lensed disk layers front to back with the
+    material's opacity, apply bloom and tone map.
+
+    time is coordinate time in M: the gas orbits differentially at its
+    Keplerian rate. camera_azimuth (radians) swings the camera around the
+    spin axis (by axisymmetry this only re-phases the disk pattern).
 
     shift_mode is "none" (movie look, default for mode="beautiful"), "hue"
     or "full" (physically complete, default for mode="accurate").
-    temp_profile is "constant" (the article's 4500 K disk) or "shakura"
-    (zero-torque thin-disk profile peaking at t_peak).
+    temp_profile: "powerlaw" (T = t_peak (r/r_in)^-temp_exponent -- the disk
+    dims and reddens toward its edge), "constant" (the article's uniform
+    4500 K sheet) or "shakura" (zero-torque profile peaking at t_peak).
     """
-    from .kerr_numba import trace_batch_kerr_multi
     from .kerr import kerr_redshift_factor
     from .temperature import disk_temperature
-    from .texture import disk_material, debris_extent
+    from .texture import disk_material
     from .postprocess import add_bloom
     from .color import tonemap
 
@@ -209,46 +238,63 @@ def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=4500.0,
     if texture_kwargs is None:
         texture_kwargs = {}
 
-    hi = camera.supersampled(supersample) if supersample > 1 else camera
-    pos = hi.position
-    r_cam = float(np.linalg.norm(pos))
-    theta_cam = float(np.arccos(pos[2] / r_cam))
-
-    debris_ratio = texture_kwargs.get("debris_ratio", 0.16)
-    r_min = disk.inner * 0.98
-    r_max = debris_extent(disk.inner, disk.outer, debris_ratio)
-    hits_r, hits_phi, n_hits, b, _ = trace_batch_kerr_multi(
-        hi, spin, r_min, r_max, max_hits=max_hits, dzeta=dzeta,
-        max_steps=max_steps)
+    hits_r, hits_phi = scene["hits_r"], scene["hits_phi"]
+    n_hits, b = scene["n_hits"], scene["b"]
 
     hue_of = _blackbody_hue_lut(6.0 * t_peak)
     linear = np.zeros(n_hits.shape + (3,))
     transmit = np.ones(n_hits.shape)
-    for k in range(max_hits):
+    for k in range(scene["max_hits"]):
         mask = (n_hits > k) & (transmit > 1.0e-3)
         if not mask.any():
             break
         r = hits_r[..., k][mask]
-        phi = hits_phi[..., k][mask]
+        phi = hits_phi[..., k][mask] + camera_azimuth
         emission, alpha = disk_material(r, phi, disk.inner, disk.outer,
-                                        **texture_kwargs)
+                                        time=time, **texture_kwargs)
         if temp_profile == "constant":
             t_emit = np.full_like(r, t_peak)
+        elif temp_profile == "powerlaw":
+            t_emit = t_peak * (r / disk.inner) ** -temp_exponent
         else:
             t_emit = disk_temperature(r, disk.inner, t_peak)
         g = kerr_redshift_factor(r, b[mask], spin, doppler_strength,
-                                 r_cam=r_cam, theta_cam=theta_cam)
+                                 r_cam=scene["r_cam"],
+                                 theta_cam=scene["theta_cam"])
         color = _shifted_disk_color(t_emit, g, t_peak, shift_mode, hue_of)
         weight = transmit[mask] * alpha * emission
         linear[mask] += weight[:, None] * color
         transmit[mask] *= 1.0 - alpha
 
-    if supersample > 1:
-        linear = _downsample(linear, supersample)
+    if scene["supersample"] > 1:
+        linear = _downsample(linear, scene["supersample"])
 
     if bloom_strength is None:
         bloom_strength = 0.75 if mode == "beautiful" else 0.4
-    return tonemap(add_bloom(linear, bloom_strength), mode)
+    return tonemap(add_bloom(linear, bloom_strength), mode,
+                   exposure=exposure, saturation=saturation)
+
+
+def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=4500.0,
+                      supersample=2, bloom_strength=None, shift_mode=None,
+                      temp_profile="powerlaw", temp_exponent=0.45,
+                      doppler_strength=1.0, time=0.0, camera_azimuth=0.0,
+                      max_hits=8, dzeta=0.1, max_steps=6000,
+                      texture_kwargs=None, exposure=None, saturation=None):
+    """Full Kerr render of the semi-transparent artist disk: trace the scene
+    once and shade it. See trace_kerr_scene / shade_kerr_scene."""
+    scene = trace_kerr_scene(camera, spin, disk, supersample=supersample,
+                             max_hits=max_hits, dzeta=dzeta,
+                             max_steps=max_steps,
+                             texture_kwargs=texture_kwargs)
+    return shade_kerr_scene(scene, spin, disk, mode=mode, t_peak=t_peak,
+                            bloom_strength=bloom_strength,
+                            shift_mode=shift_mode, temp_profile=temp_profile,
+                            temp_exponent=temp_exponent,
+                            doppler_strength=doppler_strength, time=time,
+                            camera_azimuth=camera_azimuth,
+                            texture_kwargs=texture_kwargs,
+                            exposure=exposure, saturation=saturation)
 
 
 def save_png(image, path):

@@ -50,10 +50,26 @@ def test_material_vanishes_outside_debris_extent():
     assert np.allclose(alpha, 0.0)
 
 
-def test_material_vanishes_inside_inner_edge():
-    r_in = np.linspace(INNER * 0.8, INNER * 0.999, 100)
+def test_material_vanishes_below_the_inner_feather():
+    # The inner edge feathers in from x = -0.02 (in normalized log-radius),
+    # i.e. from (OUTER/INNER)**-0.02 * INNER; below that there is nothing.
+    feather_start = INNER * (OUTER / INNER) ** -0.02
+    r_in = np.linspace(INNER * 0.8, feather_start * 0.999, 100)
     emission, _ = disk_material(r_in, np.zeros_like(r_in), INNER, OUTER)
     assert np.allclose(emission, 0.0)
+
+
+def test_material_time_is_differential_rotation():
+    # Advancing time by t must equal rotating each ring by its own
+    # Keplerian angle Omega(r) * t: the gas orbits differentially.
+    rng = np.random.default_rng(3)
+    r = rng.uniform(INNER * 1.1, OUTER * 0.95, 500)
+    az = rng.uniform(-np.pi, np.pi, 500)
+    t = 137.0
+    em_t, al_t = disk_material(r, az, INNER, OUTER, time=t)
+    em_rot, al_rot = disk_material(r, az - r ** -1.5 * t, INNER, OUTER)
+    assert np.allclose(em_t, em_rot)
+    assert np.allclose(al_t, al_rot)
 
 
 def test_material_outer_edge_is_ragged():

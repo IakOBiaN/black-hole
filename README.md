@@ -15,11 +15,31 @@ Two rendering modes are available throughout:
 
 The reference is James, von Tunzelmann, Franklin & Thorne (2015), *Gravitational
 lensing by spinning black holes in astrophysics, and in the movie Interstellar*
-(the DNGR paper, see `article/`). `main.py` renders the paper's Fig. 15/16
-geometry: spin a/M = 0.6, disk from 9.26M to 18.7M at a constant 4500 K,
-camera at r = 74.1M, 3.44° above the disk plane. `render_article_figs.py`
-reproduces Figs. 15a–c (no shifts / hue shift only / full shifts) for
-physics validation.
+(the DNGR paper, see `article/`).
+
+## Usage
+
+Snapshots — every parameter is a flag (`python main.py --help`):
+
+```bash
+python main.py                              # the default Interstellar frame
+python main.py --spin 0.998 --fov 24        # near-extremal Gargantua
+python main.py --time 150 --azimuth 90      # later; camera swung 90 deg
+python main.py --mode accurate              # full Doppler physics (Fig 15c)
+```
+
+Animations (`python animate.py --help`) — in every mode time runs and the
+disk gas orbits differentially:
+
+```bash
+python animate.py --anim time               # fixed camera, orbiting gas
+python animate.py --anim orbit              # camera circles the hole
+python animate.py --anim spin --spin-to 0.998
+```
+
+The default geometry follows the paper's Fig. 15a: spin a/M = 0.6, camera
+at r = 74.1M, 3.44° above the disk plane; the disk reaches in to the ISCO
+and dims and reddens toward its edge (T ∝ r^-0.45 blackbody).
 
 ## What is implemented
 

@@ -74,7 +74,9 @@ def tonemap(linear, mode, exposure=None, saturation=None, highlight_desat=None,
     if exposure is None:
         exposure = 1.8 if mode == "beautiful" else 1.2
     if saturation is None:
-        saturation = 1.12 if mode == "beautiful" else 1.0
+        # The film's disk is a pale pinkish cream: keep chroma well below
+        # the raw 4500 K blackbody saturation.
+        saturation = 0.8 if mode == "beautiful" else 1.0
     if highlight_desat is None:
         highlight_desat = 0.9 if mode == "beautiful" else 0.5
 
