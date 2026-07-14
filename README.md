@@ -68,12 +68,9 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-
 ## Layout
 
 ```
 src/      source code
 out/      rendered images (git-ignored)
 ```
-
-https://github.com/user-attachments/assets/806c088e-0d38-4e88-9f83-0a58fb1c4d35
