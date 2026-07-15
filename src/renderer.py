@@ -200,20 +200,22 @@ def trace_kerr_scene(camera, spin, disk, supersample=2, max_hits=8,
     debris_ratio = texture_kwargs.get("debris_ratio", 0.22)
     r_min = disk.inner * 0.98
     r_max = debris_extent(disk.inner, disk.outer, debris_ratio)
-    hits_r, hits_phi, n_hits, b, _ = trace_batch_kerr_multi(
+    hits_r, hits_phi, n_hits, b, captured = trace_batch_kerr_multi(
         hi, spin, r_min, r_max, max_hits=max_hits, dzeta=dzeta,
         max_steps=max_steps)
 
     return {"hits_r": hits_r, "hits_phi": hits_phi, "n_hits": n_hits,
-            "b": b, "r_cam": r_cam, "theta_cam": theta_cam,
-            "max_hits": max_hits, "supersample": supersample}
+            "b": b, "captured": captured, "r_cam": r_cam,
+            "theta_cam": theta_cam, "max_hits": max_hits,
+            "supersample": supersample}
 
 
 def shade_kerr_scene(scene, spin, disk, mode="beautiful", t_peak=4500.0,
                      bloom_strength=None, shift_mode=None,
                      temp_profile="powerlaw", temp_exponent=0.45,
-                     doppler_strength=1.0, time=0.0, camera_azimuth=0.0,
-                     texture_kwargs=None, exposure=None, saturation=None):
+                     temp_anchor=None, doppler_strength=1.0, time=0.0,
+                     camera_azimuth=0.0, texture_kwargs=None, exposure=None,
+                     saturation=None):
     """Shading pass: composite the lensed disk layers front to back with the
     material's opacity, apply bloom and tone map.
 
@@ -223,9 +225,13 @@ def shade_kerr_scene(scene, spin, disk, mode="beautiful", t_peak=4500.0,
 
     shift_mode is "none" (movie look, default for mode="beautiful"), "hue"
     or "full" (physically complete, default for mode="accurate").
-    temp_profile: "powerlaw" (T = t_peak (r/r_in)^-temp_exponent -- the disk
-    dims and reddens toward its edge), "constant" (the article's uniform
-    4500 K sheet) or "shakura" (zero-torque profile peaking at t_peak).
+    temp_profile: "powerlaw" (T = t_peak (r/temp_anchor)^-temp_exponent --
+    the disk dims and reddens toward its edge), "constant" (the article's
+    uniform 4500 K sheet) or "shakura" (zero-torque profile peaking at
+    t_peak). The power law is anchored at an absolute radius (default the
+    a=0.6 ISCO), not at the disk's inner edge, so raising the spin -- which
+    drags the ISCO toward the horizon -- makes the inner rim hotter instead
+    of freezing the whole outer disk.
     """
     from .kerr import kerr_redshift_factor
     from .temperature import disk_temperature
@@ -237,6 +243,13 @@ def shade_kerr_scene(scene, spin, disk, mode="beautiful", t_peak=4500.0,
         shift_mode = "none" if mode == "beautiful" else "full"
     if texture_kwargs is None:
         texture_kwargs = {}
+    if temp_anchor is None:
+        # T = t_peak at the disk's inner edge, but never anchored below the
+        # a=0.6 ISCO: when a high spin drags the inner edge toward the
+        # horizon, the rim gets hotter instead of the outer disk freezing.
+        temp_anchor = max(disk.inner, 3.83)
+    texture_kwargs = dict(texture_kwargs)
+    texture_kwargs.setdefault("envelope_anchor", temp_anchor)
 
     hits_r, hits_phi = scene["hits_r"], scene["hits_phi"]
     n_hits, b = scene["n_hits"], scene["b"]
@@ -255,7 +268,7 @@ def shade_kerr_scene(scene, spin, disk, mode="beautiful", t_peak=4500.0,
         if temp_profile == "constant":
             t_emit = np.full_like(r, t_peak)
         elif temp_profile == "powerlaw":
-            t_emit = t_peak * (r / disk.inner) ** -temp_exponent
+            t_emit = t_peak * (r / temp_anchor) ** -temp_exponent
         else:
             t_emit = disk_temperature(r, disk.inner, t_peak)
         g = kerr_redshift_factor(r, b[mask], spin, doppler_strength,
@@ -278,9 +291,10 @@ def shade_kerr_scene(scene, spin, disk, mode="beautiful", t_peak=4500.0,
 def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=4500.0,
                       supersample=2, bloom_strength=None, shift_mode=None,
                       temp_profile="powerlaw", temp_exponent=0.45,
-                      doppler_strength=1.0, time=0.0, camera_azimuth=0.0,
-                      max_hits=8, dzeta=0.1, max_steps=6000,
-                      texture_kwargs=None, exposure=None, saturation=None):
+                      temp_anchor=None, doppler_strength=1.0, time=0.0,
+                      camera_azimuth=0.0, max_hits=8, dzeta=0.1,
+                      max_steps=6000, texture_kwargs=None, exposure=None,
+                      saturation=None):
     """Full Kerr render of the semi-transparent artist disk: trace the scene
     once and shade it. See trace_kerr_scene / shade_kerr_scene."""
     scene = trace_kerr_scene(camera, spin, disk, supersample=supersample,
@@ -291,6 +305,7 @@ def render_kerr_image(camera, spin, disk, mode="beautiful", t_peak=4500.0,
                             bloom_strength=bloom_strength,
                             shift_mode=shift_mode, temp_profile=temp_profile,
                             temp_exponent=temp_exponent,
+                            temp_anchor=temp_anchor,
                             doppler_strength=doppler_strength, time=time,
                             camera_azimuth=camera_azimuth,
                             texture_kwargs=texture_kwargs,

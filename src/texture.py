@@ -76,7 +76,7 @@ def disk_material(r, azimuth, r_inner, r_outer, time=0.0,
                   shear_ages=(30.0, 110.0, 380.0),
                   gap_freq=3.5, gap_depth=0.45,
                   edge_ratio=0.17, debris_ratio=0.22,
-                  envelope_scale=0.9, tau=4.0):
+                  envelope_scale=0.9, envelope_anchor=3.83, tau=4.0):
     """Emission weight and opacity of the artist-style accretion disk.
 
     Modeled on the Double Negative Interstellar disk (James et al. 2015,
@@ -105,7 +105,10 @@ def disk_material(r, azimuth, r_inner, r_outer, time=0.0,
     x = np.log(np.maximum(r, 1.0e-9) / r_inner) / np.log(r_outer / r_inner)
 
     # Keplerian angular velocity (geometrized units, M = 1).
-    omega_k = np.maximum(r, 0.5 * r_inner) ** -1.5
+    # Absolute floor at r = 3M: below it the pattern rotates rigidly. This
+    # keeps the shear windings bounded when the disk reaches a near-extremal
+    # ISCO (Omega -> huge there would wind the fibres into aliasing mush).
+    omega_k = np.maximum(r, 3.0) ** -1.5
 
     # Time evolution: every gas element orbits at its own Keplerian rate, so
     # the whole pattern (fibres, billows, lanes, edge silhouette) is sampled
@@ -183,7 +186,11 @@ def disk_material(r, azimuth, r_inner, r_outer, time=0.0,
     # orders of magnitude toward dim, translucent outskirts. This gradient,
     # not the texture, is what makes the lensed disk read as glowing gas
     # around the hole instead of a uniformly bright sheet.
-    envelope = np.maximum(r / r_inner, 1.0e-9) ** -envelope_scale
+    # Anchored at an absolute radius (the a=0.6 ISCO), not at r_inner: the
+    # disk must not dim wholesale when a higher spin drags the inner edge
+    # toward the horizon. Capped so the sub-anchor rim stays finite.
+    envelope = np.minimum(
+        np.maximum(r / envelope_anchor, 1.0e-9) ** -envelope_scale, 3.0)
 
     # The gas also thins outward: the outer disk becomes a translucent haze
     # rather than an opaque sheet.

@@ -173,7 +173,9 @@ def rhs(y, b, q, a):
 
     # dp_theta = dG/dtheta
     drr2_dth = -2.0 * a * a * stn * ct
-    db_dth = -2.0 * b * b * ct / (st2 * stn) + 2.0 * a * a * stn * ct
+    # Same exact-pole guard as the Numba kernel (parity).
+    db_dth = (-2.0 * b * b * ct / (st2 * np.maximum(stn, 1.0e-12))
+              + 2.0 * a * a * stn * ct)
     dn_dth = -d * db_dth
     s1 = 0.5 * d * p_r * p_r * drr2_dth / (rr2 * rr2)
     s2 = 0.5 * p_theta * p_theta * drr2_dth / (rr2 * rr2)

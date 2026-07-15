@@ -3,3 +3,5 @@ scipy
 pillow
 numba
 pytest
+imageio
+imageio-ffmpeg

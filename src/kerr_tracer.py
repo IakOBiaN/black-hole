@@ -115,8 +115,13 @@ def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000,
             frac = np.where(step != 0.0, (half_pi - theta_prev) / step, 0.0)
             r_cross = r_prev + frac * (r - r_prev)
             hit = crossed & (r_cross >= disk.inner) & (r_cross <= disk.outer)
+            # Across a pole reflection phi jumps by pi; interpolating over
+            # the jump smears the azimuth, so take the endpoint there.
+            dphi_step = phi - phi_prev
+            az = np.where(np.abs(dphi_step) < half_pi,
+                          phi_prev + frac * dphi_step, phi)
             radius[idx[hit]] = r_cross[hit]
-            azimuth[idx[hit]] = (phi_prev + frac * (phi - phi_prev))[hit]
+            azimuth[idx[hit]] = az[hit]
             done |= hit
 
         done |= (r >= r_escape)
