@@ -1,5 +1,9 @@
 # black-hole
 
+[![tests](https://github.com/IakOBiaN/black-hole/actions/workflows/tests.yml/badge.svg)](https://github.com/IakOBiaN/black-hole/actions/workflows/tests.yml)
+![python](https://img.shields.io/badge/python-3.11+-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+
 A physically accurate, modern, and visually compelling black hole renderer.
 
 The goal is an image on par with the black hole in *Interstellar*, built from
@@ -126,12 +130,45 @@ and dims and reddens toward its edge (T ∝ r^-0.45 blackbody).
 - A Schwarzschild fast path (`src/tracer.py`) kept from the earlier
   roadmap stages.
 
+## Validation
+
+The physics is exercised by a test suite (geodesic conservation, shadow
+size against the analytic critical impact parameter, frame-dragging
+direction, Doppler sign end to end, Liouville I ∝ g⁴ scaling, Numba/NumPy
+tracer parity) and by reproducing the DNGR paper's published figures: the
+lensed dome, front band and bottom arc of Fig. 15a land within a few
+percent of the article's measured proportions, and the shadow flattens on
+the approaching side exactly as in its Fig. 14.
+
+## Performance
+
+Numba-compiled, parallel across all CPU cores: a 1100×500 frame with 3×
+supersampling (~5M geodesics, each integrated through the Kerr metric with
+adaptive RK4) renders in a couple of minutes on a laptop. Animations reuse
+a single geometry pass where the spacetime allows it - the Kerr metric is
+axisymmetric and static, so orbiting-gas and camera-orbit sequences only
+re-shade per frame.
+
+## References
+
+- O. James, E. von Tunzelmann, P. Franklin, K. S. Thorne,
+  *Gravitational lensing by spinning black holes in astrophysics, and in
+  the movie Interstellar*, Class. Quantum Grav. **32** 065001 (2015) —
+  [doi:10.1088/0264-9381/32/6/065001](https://doi.org/10.1088/0264-9381/32/6/065001),
+  [arXiv:1502.03808](https://arxiv.org/abs/1502.03808). The DNGR paper this
+  renderer follows: ray-tracing prescription, disk geometry, and the
+  reference figures used for validation.
+- K. S. Thorne, *The Science of Interstellar*, W. W. Norton (2014).
+
 ## Setup
+
+Python 3.11+:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+pytest tests -q             # optional: verify the physics
 ```
 
 ## Layout
