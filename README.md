@@ -38,7 +38,7 @@ Close-up at the shadow's edge, the disk crossing the frame:
 The gas orbits the hole differentially: the inner rings lap the outer
 ones, shearing the pattern as time runs.
 
-![placeholder - replace with media/anim_time.mp4](media/anim_time_poster.png)
+https://github.com/user-attachments/assets/05d08a0a-09a1-4a5d-88d4-07acbc8b4a5d
 
 The spin sweep morphs between the two stills above: from the Schwarzschild
 frame (a = 0) to the movie frame (a = 0.6), with the disk's inner edge
@@ -46,11 +46,11 @@ following the shrinking ISCO (6M down to 3.83M). Higher spins are physical
 but increasingly unreadable - the blazing inner gas starts to veil the
 shadow.
 
-![placeholder - replace with media/anim_spin.mp4](media/anim_spin_poster.png)
+https://github.com/user-attachments/assets/8971167d-3dae-4a1a-b44c-10e1f8d05dfc
 
 Close-up on the shadow's edge with the gas streaming past:
 
-![placeholder - replace with media/anim_closeup.mp4](media/anim_closeup_poster.png)
+https://github.com/user-attachments/assets/06faa8fe-ddf8-461f-8061-0dd29420a6a6
 
 Two rendering modes are available throughout:
 
