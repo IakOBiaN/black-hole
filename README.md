@@ -140,6 +140,11 @@ lensed dome, front band and bottom arc of Fig. 15a land within a few
 percent of the article's measured proportions, and the shadow flattens on
 the approaching side exactly as in its Fig. 14.
 
+The model's physical scope, numerical approximations and artistic choices are
+listed explicitly in [ACCURACY.md](ACCURACY.md). Run `python validate.py` for
+a deterministic report of measured errors against analytic limits, or
+`python validate.py --json` for machine-readable results.
+
 ## Performance
 
 Numba-compiled, parallel across all CPU cores: a 1100×500 frame with 3×
