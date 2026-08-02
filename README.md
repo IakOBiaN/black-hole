@@ -4,13 +4,41 @@
 ![python](https://img.shields.io/badge/python-3.11+-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-A physically accurate, modern, and visually compelling black hole renderer.
+A cinematic black hole renderer built from first principles in Python. It
+traces light through Kerr spacetime and combines physically grounded lensing
+and relativistic frequency shifts with an artist-directed, animated accretion
+disk.
 
-The goal is an image on par with the black hole in *Interstellar*, built from
-first principles: tracing light rays through curved spacetime and rendering the
-gravitationally lensed view a camera near the hole would actually see.
+The goal is not only to demonstrate gravitational lensing, but to produce
+finished high-resolution images and animations inspired by the black hole in
+*Interstellar*.
 
 ![The black hole](media/blackhole.png)
+
+## Why this renderer?
+
+- **Finished images are the primary output.** The camera, disk material,
+  lighting and post-processing are designed together to produce a complete
+  frame rather than an isolated lensing diagram.
+- **The disk has structure and motion.** Fine filaments, ring gaps, a ragged
+  outer edge and sparse debris are generated procedurally, then advected by
+  differential orbital motion.
+- **Higher-order images come from traced rays.** Rays record multiple
+  crossings of the equatorial plane, revealing the far side and underside of
+  the disk through gravitational lensing.
+- **Kerr and Schwarzschild share one rendering pipeline.** Turning spin off
+  restores the symmetric Schwarzschild geometry without removing the detailed
+  disk, blackbody shading or cinematic finish.
+- **Physics and movie aesthetics can be compared directly.** `accurate` uses
+  the implemented Doppler and gravitational frequency shifts with
+  relativistic beaming. `beautiful` follows the movie treatment with gentler
+  colour variation and a stronger veiling glow.
+- **Offline rendering favours frame quality.** Numba parallelizes the ray
+  tracing across CPU cores, while supersampling, HDR bloom and filmic tone
+  mapping preserve fine structure in the final image.
+- **The numerical claims are testable.** Analytic limits, tracer parity, step
+  convergence and multiple-image formation are covered by the validation
+  report and automated tests.
 
 ## Anatomy
 
@@ -32,6 +60,10 @@ Looking straight down the spin axis the shadow is round, the photon ring
 closes into a full halo and the spiral gas flow is seen face-on. With the
 spin turned off the picture becomes left-right symmetric and the disk's
 inner edge retreats to the Schwarzschild ISCO at 6M.
+
+Turning spin off changes the spacetime geometry, not the rendering pipeline.
+The procedural disk, multiple lensed layers, blackbody shading and cinematic
+post-processing remain active in the Schwarzschild frame.
 
 Close-up at the shadow's edge, the disk crossing the frame:
 
@@ -58,7 +90,8 @@ https://github.com/user-attachments/assets/06faa8fe-ddf8-461f-8061-0dd29420a6a6
 
 Two rendering modes are available throughout:
 
-- **accurate** - physically faithful (no artistic adjustments)
+- **accurate** - full implemented frequency shifts and relativistic beaming,
+  with restrained post-processing
 - **beautiful** - the movie treatment: no frequency shifts (as chosen by
   Nolan and Franklin), plus a soft veiling glow standing in for IMAX lens
   flare
