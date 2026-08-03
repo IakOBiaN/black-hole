@@ -34,8 +34,8 @@ from src.renderer import render_kerr_image, save_png
 
 PRESETS = {
     "preview": {
-        "width": 550,
-        "height": 250,
+        "width": 720,
+        "height": 480,
         "supersample": 1,
         "max_steps": 6000,
         "out": "out/preview.png",
