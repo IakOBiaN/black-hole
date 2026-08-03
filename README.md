@@ -40,6 +40,25 @@ finished high-resolution images and animations inspired by the black hole in
   convergence and multiple-image formation are covered by the validation
   report and automated tests.
 
+## Quick start
+
+Python 3.11+ is required.
+
+```bash
+git clone https://github.com/IakOBiaN/black-hole.git
+cd black-hole
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install -r requirements.txt
+python main.py --preset preview
+```
+
+The preview preset renders a 550x250 frame to `out/preview.png` with a single
+sample per pixel. It is intended to produce a recognizable first image within
+seconds. The first run also includes Numba compilation and takes longer than
+later renders. Run `python main.py` without the preset for the default
+high-quality frame.
+
 ## Anatomy
 
 The physics frame (`--mode accurate`): every structure general relativity
@@ -104,6 +123,7 @@ lensing by spinning black holes in astrophysics, and in the movie Interstellar*.
 Snapshots - every parameter is a flag (`python main.py --help`):
 
 ```bash
+python main.py --preset preview             # fast first render
 python main.py                              # the default Interstellar frame
 python main.py --spin 0.998 --fov 24        # near-extremal Gargantua
 python main.py --time 150 --azimuth 90      # later; camera swung 90 deg

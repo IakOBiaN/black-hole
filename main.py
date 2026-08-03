@@ -12,6 +12,7 @@ Every parameter is a command-line flag, and the same keys work in
 animate.py, so any framing found here can be animated as is:
 
     python main.py                             # the default frame
+    python main.py --preset preview            # fast first render
     python main.py --spin 0.998 --fov 24       # near-extremal Gargantua
     python main.py --time 150 --azimuth 90     # later, camera swung 90 deg
     python main.py --mode accurate             # full Doppler physics
@@ -31,9 +32,23 @@ from src.kerr import isco
 from src.renderer import render_kerr_image, save_png
 
 
+PRESETS = {
+    "preview": {
+        "width": 550,
+        "height": 250,
+        "supersample": 1,
+        "max_steps": 6000,
+        "out": "out/preview.png",
+    },
+}
+
+
 def build_parser():
     p = argparse.ArgumentParser(
         description="Render a Kerr black hole with its accretion disk.")
+    p.add_argument("--preset", choices=tuple(PRESETS), default=None,
+                   help="named render settings; explicit flags override the "
+                        "preset (preview = fast first render)")
     p.add_argument("--spin", type=float, default=0.6,
                    help="black hole spin a/M in [0, 0.999] (default 0.6)")
     p.add_argument("--time", type=float, default=0.0,
@@ -46,8 +61,20 @@ def build_parser():
     return p
 
 
+def parse_args(argv=None):
+    """Apply preset values as defaults, then let explicit flags override."""
+    preset_parser = argparse.ArgumentParser(add_help=False)
+    preset_parser.add_argument("--preset", choices=tuple(PRESETS), default=None)
+    preset_args, _ = preset_parser.parse_known_args(argv)
+
+    parser = build_parser()
+    if preset_args.preset is not None:
+        parser.set_defaults(**PRESETS[preset_args.preset])
+    return parser.parse_args(argv)
+
+
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    args = parse_args(argv)
     inner = args.inner if args.inner is not None else isco(args.spin)
     disk = Disk(inner=inner, outer=args.outer)
     image = render_kerr_image(
