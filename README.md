@@ -3,6 +3,7 @@
 [![tests](https://github.com/IakOBiaN/black-hole/actions/workflows/tests.yml/badge.svg)](https://github.com/IakOBiaN/black-hole/actions/workflows/tests.yml)
 ![python](https://img.shields.io/badge/python-3.11+-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IakOBiaN/black-hole/blob/main/examples/black_hole_colab.ipynb)
 
 A cinematic black hole renderer built from first principles in Python. It
 traces light through Kerr spacetime and combines physically grounded lensing
@@ -43,6 +44,10 @@ finished high-resolution images and animations inspired by the black hole in
 ## Quick start
 
 Python 3.11+ is required.
+
+To render in a browser without a local Python setup, use the **Open in Colab**
+button above. Run the notebook from top to bottom, adjust the form controls,
+and download the resulting PNG.
 
 ```bash
 git clone https://github.com/IakOBiaN/black-hole.git
@@ -237,7 +242,8 @@ The installed commands are `black-hole` for snapshots and
 ## Layout
 
 ```
-src/      source code
-media/    committed gallery renders (regenerate with the commands above)
-out/      working renders (git-ignored)
+src/       source code
+examples/  runnable Google Colab notebook
+media/     committed gallery renders (regenerate with the commands above)
+out/       working renders (git-ignored)
 ```
