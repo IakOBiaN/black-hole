@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
 
-from src.metric import (
+from black_hole.metric import (
     schwarzschild_radius,
     photon_sphere_radius,
     critical_impact_parameter,
 )
-from src.geodesic import integrate_ray, deflection_angle
+from black_hole.geodesic import integrate_ray, deflection_angle
 
 M = 1.0
 

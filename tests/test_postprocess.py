@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.postprocess import add_bloom
+from black_hole.postprocess import add_bloom
 
 
 def test_zero_strength_is_noop():

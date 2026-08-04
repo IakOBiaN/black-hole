@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.kerr import (horizon_radius, photon_orbit_radii, photon_orbit_b,
+from black_hole.kerr import (horizon_radius, photon_orbit_radii, photon_orbit_b,
                       equatorial_ray_status, rhs, rhs_numerical)
 
 

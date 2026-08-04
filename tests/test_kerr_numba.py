@@ -1,10 +1,10 @@
 import numpy as np
 
-from src.camera import Camera
-from src.disk import Disk
-from src.kerr import isco
-from src.kerr_tracer import trace_batch_kerr as trace_numpy
-from src.kerr_numba import trace_batch_kerr as trace_numba
+from black_hole.camera import Camera
+from black_hole.disk import Disk
+from black_hole.kerr import isco
+from black_hole.kerr_tracer import trace_batch_kerr as trace_numpy
+from black_hole.kerr_numba import trace_batch_kerr as trace_numba
 
 
 def test_numba_tracer_matches_numpy_reference():

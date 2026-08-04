@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.color import blackbody_color, linear_to_srgb
+from black_hole.color import blackbody_color, linear_to_srgb
 
 
 def test_cool_blackbody_is_reddish():

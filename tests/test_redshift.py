@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.disk import redshift_factor, orbital_angular_velocity
+from black_hole.disk import redshift_factor, orbital_angular_velocity
 
 M = 1.0
 

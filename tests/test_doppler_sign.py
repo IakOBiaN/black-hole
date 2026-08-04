@@ -9,11 +9,11 @@ side is screen-LEFT and must be blueshifted (g > 1).
 
 import numpy as np
 
-from src.camera import Camera
-from src.disk import Disk, redshift_factor
-from src.kerr import isco, kerr_redshift_factor
-from src.kerr_numba import trace_batch_kerr
-from src.tracer import trace_batch
+from black_hole.camera import Camera
+from black_hole.disk import Disk, redshift_factor
+from black_hole.kerr import isco, kerr_redshift_factor
+from black_hole.kerr_numba import trace_batch_kerr
+from black_hole.tracer import trace_batch
 
 M = 1.0
 

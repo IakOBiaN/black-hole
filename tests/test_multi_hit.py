@@ -2,10 +2,10 @@
 
 import numpy as np
 
-from src.camera import Camera
-from src.disk import Disk
-from src.kerr import isco
-from src.kerr_numba import trace_batch_kerr, trace_batch_kerr_multi
+from black_hole.camera import Camera
+from black_hole.disk import Disk
+from black_hole.kerr import isco
+from black_hole.kerr_numba import trace_batch_kerr, trace_batch_kerr_multi
 
 A = 0.6
 CAM = Camera(distance=40.0, resolution=(64, 40), fov_deg=40.0,

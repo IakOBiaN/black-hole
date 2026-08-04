@@ -1,7 +1,1 @@
-numpy
-scipy
-pillow
-numba
-pytest
-imageio
-imageio-ffmpeg
+-e .[dev]

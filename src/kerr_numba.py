@@ -231,7 +231,7 @@ def trace_batch_kerr_multi(camera, a, r_min, r_max, max_hits=8, dzeta=0.1,
 def trace_batch_kerr(camera, a, disk, dzeta=0.1, max_steps=4000,
                      r_escape=None):
     """Single-hit opaque-disk trace. Returns (radius, b, azimuth, captured),
-    matching src.kerr_tracer.trace_batch_kerr: radius/azimuth of the first
+    matching black_hole.kerr_tracer.trace_batch_kerr: radius/azimuth of the first
     disk crossing (NaN if none), captured True only for rays that reach the
     horizon without hitting the disk."""
     hits_r, hits_phi, n_hits, b, captured = trace_batch_kerr_multi(

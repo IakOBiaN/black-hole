@@ -1,4 +1,4 @@
-from main import parse_args
+from black_hole.snapshot import parse_args
 
 
 def test_default_render_settings_are_unchanged():
@@ -12,7 +12,7 @@ def test_default_render_settings_are_unchanged():
 
 def test_preview_preset_uses_fast_render_settings():
     args = parse_args(["--preset", "preview"])
-    assert (args.width, args.height) == (550, 250)
+    assert (args.width, args.height) == (720, 480)
     assert args.supersample == 1
     assert args.max_steps == 6000
     assert args.out == "out/preview.png"
@@ -26,6 +26,6 @@ def test_explicit_flags_override_preview_preset():
         "--out", "out/custom.png",
     ])
     assert args.width == 800
-    assert args.height == 250
+    assert args.height == 480
     assert args.supersample == 2
     assert args.out == "out/custom.png"

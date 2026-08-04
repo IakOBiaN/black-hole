@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.texture import disk_pattern, disk_material, debris_extent
+from black_hole.texture import disk_pattern, disk_material, debris_extent
 
 R_IN = 6.0
 INNER, OUTER = 9.26, 18.7

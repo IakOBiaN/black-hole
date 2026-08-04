@@ -1,8 +1,8 @@
 import numpy as np
 
-from src.camera import Camera
-from src.disk import Disk
-from src.kerr_tracer import trace_batch_kerr
+from black_hole.camera import Camera
+from black_hole.disk import Disk
+from black_hole.kerr_tracer import trace_batch_kerr
 
 NO_DISK = Disk(1000.0, 1001.0)  # inner radius never reached -> pure shadow map
 

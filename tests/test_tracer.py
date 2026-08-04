@@ -1,9 +1,9 @@
 import numpy as np
 
-from src.camera import Camera
-from src.disk import Disk
-from src.tracer import trace_batch
-from src.renderer import render_buffers
+from black_hole.camera import Camera
+from black_hole.disk import Disk
+from black_hole.tracer import trace_batch
+from black_hole.renderer import render_buffers
 
 CAM = Camera(distance=30.0, resolution=(48, 48), fov_deg=52.0, inclination_deg=10.0)
 DISK = Disk(6.0, 14.0)

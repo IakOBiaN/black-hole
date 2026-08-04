@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from src.renderer import _blackbody_hue_lut, _shifted_disk_color, _LUMA_FILM
+from black_hole.renderer import _blackbody_hue_lut, _shifted_disk_color, _LUMA_FILM
 
 T = 4500.0
 HUE_OF = _blackbody_hue_lut(6.0 * T)

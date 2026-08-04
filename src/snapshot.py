@@ -1,0 +1,65 @@
+"""Command-line entry point for rendering black hole snapshots."""
+
+import argparse
+
+import numpy as np
+
+from .cli import (add_camera_args, add_look_args, camera_from_args,
+                  look_kwargs_from_args)
+from .disk import Disk
+from .kerr import isco
+from .renderer import render_kerr_image, save_png
+
+
+PRESETS = {
+    "preview": {
+        "width": 720,
+        "height": 480,
+        "supersample": 1,
+        "max_steps": 6000,
+        "out": "out/preview.png",
+    },
+}
+
+
+def build_parser():
+    p = argparse.ArgumentParser(
+        description="Render a Kerr black hole with its accretion disk.")
+    p.add_argument("--preset", choices=tuple(PRESETS), default=None,
+                   help="named render settings; explicit flags override the "
+                        "preset (preview = fast first render)")
+    p.add_argument("--spin", type=float, default=0.6,
+                   help="black hole spin a/M in [0, 0.999] (default 0.6)")
+    p.add_argument("--time", type=float, default=0.0,
+                   help="disk time in M: the gas orbits differentially")
+    p.add_argument("--azimuth", type=float, default=0.0,
+                   help="camera azimuth around the spin axis, degrees")
+    add_camera_args(p)
+    add_look_args(p)
+    p.add_argument("--out", default="out/disk.png")
+    return p
+
+
+def parse_args(argv=None):
+    """Apply preset values as defaults, then let explicit flags override."""
+    preset_parser = argparse.ArgumentParser(add_help=False)
+    preset_parser.add_argument("--preset", choices=tuple(PRESETS), default=None)
+    preset_args, _ = preset_parser.parse_known_args(argv)
+
+    parser = build_parser()
+    if preset_args.preset is not None:
+        parser.set_defaults(**PRESETS[preset_args.preset])
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    inner = args.inner if args.inner is not None else isco(args.spin)
+    disk = Disk(inner=inner, outer=args.outer)
+    image = render_kerr_image(
+        camera_from_args(args), args.spin, disk, time=args.time,
+        camera_azimuth=np.radians(args.azimuth),
+        supersample=args.supersample, dzeta=0.07, max_steps=args.max_steps,
+        **look_kwargs_from_args(args))
+    save_png(image, args.out)
+    print(f"saved {args.out}")

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.disk import trace, Disk
+from black_hole.disk import trace, Disk
 
 DISK = Disk(2.0, 20.0)
 

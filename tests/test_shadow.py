@@ -1,7 +1,7 @@
 import numpy as np
 
-from src.metric import lapse_squared, critical_impact_parameter
-from src.renderer import ray_status
+from black_hole.metric import lapse_squared, critical_impact_parameter
+from black_hole.renderer import ray_status
 
 M = 1.0
 

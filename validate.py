@@ -16,9 +16,9 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 
-from src.camera import Camera
-from src.disk import Disk
-from src.kerr import (
+from black_hole.camera import Camera
+from black_hole.disk import Disk
+from black_hole.kerr import (
     equatorial_ray_status,
     isco,
     kerr_redshift_factor,
@@ -27,9 +27,9 @@ from src.kerr import (
     rhs,
     rhs_numerical,
 )
-from src.kerr_numba import trace_batch_kerr_multi
-from src.kerr_numba import trace_batch_kerr as trace_numba
-from src.kerr_tracer import trace_batch_kerr as trace_numpy
+from black_hole.kerr_numba import trace_batch_kerr_multi
+from black_hole.kerr_numba import trace_batch_kerr as trace_numba
+from black_hole.kerr_tracer import trace_batch_kerr as trace_numpy
 
 
 @dataclass

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.temperature import disk_temperature
+from black_hole.temperature import disk_temperature
 
 R_IN = 6.0
 T_PEAK = 10000.0

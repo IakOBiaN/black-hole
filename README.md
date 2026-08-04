@@ -49,14 +49,14 @@ git clone https://github.com/IakOBiaN/black-hole.git
 cd black-hole
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-python -m pip install -r requirements.txt
-python main.py --preset preview
+python -m pip install .
+black-hole --preset preview
 ```
 
-The preview preset renders a 550x250 frame to `out/preview.png` with a single
+The preview preset renders a 720x480 frame to `out/preview.png` with a single
 sample per pixel. It is intended to produce a recognizable first image within
 seconds. The first run also includes Numba compilation and takes longer than
-later renders. Run `python main.py` without the preset for the default
+later renders. Run `black-hole` without the preset for the default
 high-quality frame.
 
 ## Anatomy
@@ -120,23 +120,23 @@ lensing by spinning black holes in astrophysics, and in the movie Interstellar*.
 
 ## Usage
 
-Snapshots - every parameter is a flag (`python main.py --help`):
+Snapshots - every parameter is a flag (`black-hole --help`):
 
 ```bash
-python main.py --preset preview             # fast first render
-python main.py                              # the default Interstellar frame
-python main.py --spin 0.998 --fov 24        # near-extremal Gargantua
-python main.py --time 150 --azimuth 90      # later; camera swung 90 deg
-python main.py --mode accurate              # full Doppler physics (Fig 15c)
+black-hole --preset preview             # fast first render
+black-hole                              # the default Interstellar frame
+black-hole --spin 0.998 --fov 24        # near-extremal Gargantua
+black-hole --time 150 --azimuth 90      # later; camera swung 90 deg
+black-hole --mode accurate              # full Doppler physics (Fig 15c)
 ```
 
-Animations (`python animate.py --help`) - in every mode time runs and the
+Animations (`black-hole-animate --help`) - in every mode time runs and the
 disk gas orbits differentially:
 
 ```bash
-python animate.py --anim time               # fixed camera, orbiting gas
-python animate.py --anim orbit              # camera circles the hole
-python animate.py --anim spin --track-isco --spin-to 0.6
+black-hole-animate --anim time               # fixed camera, orbiting gas
+black-hole-animate --anim orbit              # camera circles the hole
+black-hole-animate --anim spin --track-isco --spin-to 0.6
 ```
 
 Camera and look keys are shared with main.py, so any framing found with a
@@ -211,7 +211,7 @@ re-shade per frame.
 
 - O. James, E. von Tunzelmann, P. Franklin, K. S. Thorne,
   *Gravitational lensing by spinning black holes in astrophysics, and in
-  the movie Interstellar*, Class. Quantum Grav. **32** 065001 (2015) —
+  the movie Interstellar*, Class. Quantum Grav. **32** 065001 (2015):
   [doi:10.1088/0264-9381/32/6/065001](https://doi.org/10.1088/0264-9381/32/6/065001),
   [arXiv:1502.03808](https://arxiv.org/abs/1502.03808). The DNGR paper this
   renderer follows: ray-tracing prescription, disk geometry, and the
@@ -225,9 +225,14 @@ Python 3.11+:
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+python -m pip install .
+python -m pip install -e .[dev]  # optional: development and tests
 pytest tests -q             # optional: verify the physics
 ```
+
+The installed commands are `black-hole` for snapshots and
+`black-hole-animate` for animations. The original `python main.py` and
+`python animate.py` entry points remain available in a source checkout.
 
 ## Layout
 
