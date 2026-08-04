@@ -239,6 +239,8 @@ The installed commands are `black-hole` for snapshots and
 `black-hole-animate` for animations. The original `python main.py` and
 `python animate.py` entry points remain available in a source checkout.
 
+Release history is recorded in [CHANGELOG.md](CHANGELOG.md).
+
 ## Layout
 
 ```

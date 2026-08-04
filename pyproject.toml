@@ -49,6 +49,7 @@ dev = ["pytest"]
 Homepage = "https://github.com/IakOBiaN/black-hole"
 Repository = "https://github.com/IakOBiaN/black-hole"
 Issues = "https://github.com/IakOBiaN/black-hole/issues"
+Changelog = "https://github.com/IakOBiaN/black-hole/blob/main/CHANGELOG.md"
 
 [project.scripts]
 black-hole = "black_hole.snapshot:main"
