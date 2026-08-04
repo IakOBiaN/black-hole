@@ -16,6 +16,10 @@ env/
 *.egg-info/
 .pytest_cache/
 
+# Packaging
+build/
+dist/
+
 # Editor / OS
 .vscode/
 .idea/

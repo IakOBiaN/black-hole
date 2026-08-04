@@ -1,0 +1,7 @@
+include ACCURACY.md
+include CHANGELOG.md
+include animate.py
+include main.py
+include requirements.txt
+include validate.py
+recursive-include examples *.ipynb *.png
