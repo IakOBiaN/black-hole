@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 
+import _bootstrap  # noqa: F401  (binds black_hole to ./src)
 from black_hole.camera import Camera
 from black_hole.disk import Disk
 from black_hole.kerr import (

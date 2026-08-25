@@ -237,7 +237,9 @@ pytest tests -q             # optional: verify the physics
 
 The installed commands are `black-hole` for snapshots and
 `black-hole-animate` for animations. The original `python main.py` and
-`python animate.py` entry points remain available in a source checkout.
+`python animate.py` entry points run straight from a source checkout
+without installing the package, as long as the dependencies listed in
+`pyproject.toml` are importable.
 
 Release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 

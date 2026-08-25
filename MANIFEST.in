@@ -1,5 +1,6 @@
 include ACCURACY.md
 include CHANGELOG.md
+include _bootstrap.py
 include animate.py
 include main.py
 include requirements.txt
