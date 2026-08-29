@@ -156,14 +156,17 @@ The gallery above regenerates with:
 
 ```bash
 python main.py --width 1920 --height 1080 --fov 21 --supersample 2 --out media/blackhole.png
-python main.py --mode accurate --saturation 0.75 --bloom 0.3 --width 1920 --height 1080 --fov 21 --supersample 2 --out media/anatomy.png
+python main.py --mode accurate --saturation 0.75 --bloom 0.3 --width 1920 --height 1080 --fov 21 --supersample 2 --out out/anatomy.png
 python main.py --inclination 90 --fov 34 --width 1080 --height 1080 --supersample 2 --max-steps 45000 --out media/topdown.png
 python main.py --spin 0 --width 1920 --height 1080 --fov 21 --supersample 2 --out media/schwarzschild.png
-python main.py --fov 6.2 --aim-x -2.5 --aim-y 2.3 --roll 10 --width 1412 --height 1200 --supersample 2 --out media/closeup.png
+python main.py --fov 6.2 --aim-x -4 --aim-y 0 --roll 13 --width 1100 --height 800 --supersample 2 --out media/closeup.png
 python animate.py --anim time --frames 144 --step 2 --fps 24 --width 1600 --height 720 --supersample 2 --out media/anim_time.mp4
 python animate.py --anim time --frames 216 --step 0.75 --fps 24 --fov 6.2 --aim-x -4 --aim-y 0 --roll 13 --width 1104 --height 800 --supersample 2 --out media/anim_closeup.mp4
 python animate.py --anim spin --track-isco --spin-from 0 --spin-to 0.6 --frames 64 --step 2 --fps 16 --width 1280 --height 576 --supersample 2 --out media/anim_spin.mp4
 ```
+
+`media/anatomy.png` is that render with the labels drawn on by hand, so
+the command writes to `out/` instead of overwriting the annotated copy.
 
 The default geometry follows the paper's Fig. 15a: spin a/M = 0.6, camera
 at r = 74.1M, 3.44° above the disk plane; the disk reaches in to the ISCO
