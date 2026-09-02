@@ -110,7 +110,7 @@ https://github.com/user-attachments/assets/8971167d-3dae-4a1a-b44c-10e1f8d05dfc
 
 Close-up on the shadow's edge with the gas streaming past:
 
-https://github.com/user-attachments/assets/06faa8fe-ddf8-461f-8061-0dd29420a6a6
+https://github.com/user-attachments/assets/e12efaf7-0772-41c7-982d-679245bc2636
 
 Two rendering modes are available throughout:
 
